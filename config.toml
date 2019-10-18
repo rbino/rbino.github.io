@@ -1,3 +1,53 @@
-baseURL = "http://example.org/"
-languageCode = "en-us"
-title = "My New Hugo Site"
+baseurl = "http://new.rbino.com"
+title = "rbino"
+theme = "hugo-coder"
+languagecode = "en"
+defaultcontentlanguage = "en"
+
+paginate = 20
+canonifyurls = true
+
+pygmentsstyle = "bw"
+pygmentscodefences = true
+pygmentscodefencesguesssyntax = true
+
+[params]
+    author = "Riccardo Binetti"
+    info = "Software developer"
+    description = "rbino's website"
+    keywords = "blog,developer,personal"
+    avatarurl = "images/rbino-avatar.jpg"
+
+    favicon_16 = "images/favicon16.png"
+    favicon_32 = "images/favicon32.png"
+
+    hidecredits = true
+    hidecopyright = false
+
+    rtl = false
+
+    math = true
+    custom_css = ["css/custom.css"]
+
+# Social links
+[[params.social]]
+    name = "Github"
+    icon = "fab fa-github fa-2x"
+    weight = 1
+    url = "https://github.com/rbino/"
+[[params.social]]
+    name = "Twitter"
+    icon = "fab fa-twitter fa-2x"
+    weight = 2
+    url = "https://twitter.com/errebino/"
+[[params.social]]
+    name = "Medium"
+    icon = "fab fa-medium fa-2x"
+    weight = 3
+    url = "https://medium.com/@rbino/"
+
+# Menu links
+[[menu.main]]
+    name = "About"
+    weight = 1
+    url = "/about"
