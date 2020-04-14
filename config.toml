@@ -1,4 +1,4 @@
-baseurl = "http://new.rbino.com"
+baseurl = "https://rbino.com"
 title = "rbino"
 theme = "hugo-coder"
 languagecode = "en"
