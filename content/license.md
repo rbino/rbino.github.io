@@ -11,7 +11,7 @@ All non-code blog content is licensed under the
 All source code files and snippets found on this blog, unless otherwise explicitly noted, are
 licensed under the MIT license, written below.
 ```
-Copyright © 2019 Riccardo Binetti
+Copyright © Riccardo Binetti
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
