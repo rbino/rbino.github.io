@@ -60,3 +60,8 @@ pygmentsCodeFencesGuessSyntax = true
     name = "About"
     weight = 1
     url = "/about"
+
+[[menu.main]]
+    name = "License"
+    weight = 2
+    url = "/license"
