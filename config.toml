@@ -33,6 +33,11 @@ pygmentsCodeFencesGuessSyntax = true
     math = true
     customCSS = ["css/custom.css"]
 
+[taxonomies]
+    category = "categories"
+    series = "series"
+    tag = "tags"
+
 # Social links
 [[params.social]]
     name = "Github"
