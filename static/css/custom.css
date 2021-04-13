@@ -21,3 +21,7 @@ h1, h2, h3, h4, h5, h6 {
     hyphens: none;
     text-align: left;
 }
+
+body.colorscheme-dark code {
+    background-color: #272822;
+}
