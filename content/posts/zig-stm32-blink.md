@@ -2,10 +2,10 @@
 draft = false
 date = 2021-04-13T22:53:00+02:00
 title = "Zig + STM32F4Discovery = Blink"
-description = "Blinking LEDs on an embedded device using only Zig and a linker script"
+description = "Blinking LEDs on a microcontroller using only Zig and a linker script"
 slug = ""
 authors = []
-tags = ["zig", "embedded", "stm32"]
+tags = ["zig", "embedded", "microcontroller", "stm32"]
 categories = []
 externalLink = ""
 series = []
