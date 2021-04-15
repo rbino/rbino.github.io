@@ -11,7 +11,7 @@ externalLink = ""
 series = []
 +++
 I recently discovered the [Zig programming language](https://ziglang.org/) thanks to [this
-post](https://ke3inlynagh.com/rust-zig/), which first caught my attention for the mechanical
+post](https://kevinlynagh.com/rust-zig/), which first caught my attention for the mechanical
 keyboards background. I liked the premise of Zig's aim to be a "better C", as opposed to other
 languages (e.g. Rust) that tend more towards "better C++", so I decided to give Zig a try and use it
 to do something I would usually use C for: programming a microcontroller.
