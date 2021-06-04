@@ -52,9 +52,13 @@ targets` and for [most targets](https://ziglang.org/learn/overview/#tier-system)
 run `zig build-exe -target <target-triple>` to cross-compile. Since we are building for a specific
 target, we can just define a fixed target in `build.zig`.
 
-The STM32F4 Discovery uses an STM32F407VG, which is an ARM Cortex M4 CPU, so `cpu_arch` will be
-`arm` and `cpu_model` will target the `cortex_m4` CPU. The code will run as bare metal, with no OS
-involved, so `os_tag` will be `freestanding`.
+The STM32F4 Discovery uses an STM32F407VG, which is an ARM Cortex-M4 CPU, so `cpu_arch` will be
+~~`arm`~~ `thumb` and `cpu_model` will target the `cortex_m4` CPU. The code will run as bare metal,
+with no OS involved, so `os_tag` will be `freestanding**.
+
+*Update 04/06/2021: I discovered that the correct `cpu_arch` to use here is `thumb` and not `arm`,
+since Cortex-M CPUs only support Thumb (and Thumb2) instructions (see
+[here](https://github.com/ziglang/zig/issues/8972))*
 
 The last choice is the ABI (Application Binary Interface). We're running on bare metal with no
 `libc`, so we can choose between `eabi` (i.e. "soft-float") and `eabihf` (i.e. "hard-float"). Since
@@ -65,10 +69,10 @@ Putting this all together leads to this target definition in `build.zig`:
 
 ```zig
 const target = .{
-    .cpu_arch = std.Target.Cpu.Arch.arm,
+    .cpu_arch = .thumb,
     .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_m4 },
-    .os_tag = std.Target.Os.Tag.freestanding,
-    .abi = std.Target.Abi.eabihf,
+    .os_tag = .freestanding,
+    .abi = .eabihf,
 };
 ```
 
