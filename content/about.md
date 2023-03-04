@@ -3,16 +3,23 @@ title: "About"
 date: 2019-10-17T23:48:20+02:00
 draft: false
 ---
+![](/images/rbino-avatar.jpg)
+
 Hi, I'm Riccardo!
 
-I live in Padova (Italy) and I'm a software developer.
+During the day I mostly do backend development using Elixir, but I also like messing with other
+stuff like embedded development, electronics, music, and cooking.
 
-My main areas of expertise are backend and embedded development, but I'm
-always looking for new fields to explore.
+I'm a strong believer in having many different tools in the toolbelt to avoid using a hammer to
+plant screws.
 
-I like trying as many programming languages as I can since every one of them
-usually offers some kind of new insight.
+I'm a big yak shaver and I tend to start a new project before I'm finished with the old one. This
+blog is also meant to force myself into finishing things so I can write about them.
 
-I also like messing with other stuff like music, electronics and cooking.
+## Socials and contacts
 
-You can contact me at `rbino [at] gmx.com`.
+- [GitHub](https://github.com/rbino)
+- [Mastodon](https://patavium.social/rbino)
+- [SoundCloud](https://soundcloud.com/errebino)
+- [Twitter](https://twitter.com/errebino)
+- [Email](mailto:rbino@gmx.com)
