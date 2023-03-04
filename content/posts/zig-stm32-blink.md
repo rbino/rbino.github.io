@@ -3,12 +3,7 @@ draft = false
 date = 2021-04-13T22:53:00+02:00
 title = "Zig + STM32F4Discovery = Blink"
 description = "Blinking LEDs on a microcontroller using only Zig and a linker script"
-slug = ""
-authors = []
 tags = ["zig", "embedded", "microcontroller", "stm32"]
-categories = []
-externalLink = ""
-series = []
 +++
 I recently discovered the [Zig programming language](https://ziglang.org/) thanks to [this
 post](https://kevinlynagh.com/rust-zig/), which first caught my attention for the mechanical
@@ -53,8 +48,8 @@ run `zig build-exe -target <target-triple>` to cross-compile. Since we are build
 target, we can just define a fixed target in `build.zig`.
 
 The STM32F4 Discovery uses an STM32F407VG, which is an ARM Cortex-M4 CPU, so `cpu_arch` will be
-~~`arm`~~ `thumb` and `cpu_model` will target the `cortex_m4` CPU. The code will run as bare metal,
-with no OS involved, so `os_tag` will be `freestanding**.
+<s>`arm`</s> `thumb` and `cpu_model` will target the `cortex_m4` CPU. The code will run as bare
+metal, with no OS involved, so `os_tag` will be `freestanding`.
 
 *Update 04/06/2021: I discovered that the correct `cpu_arch` to use here is `thumb` and not `arm`,
 since Cortex-M CPUs only support Thumb (and Thumb2) instructions (see

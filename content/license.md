@@ -2,6 +2,7 @@
 title: "License"
 date: 2019-10-18T10:38:48+02:00
 draft: false
+hidden: true
 ---
 ## Content license
 All non-code blog content is licensed under the

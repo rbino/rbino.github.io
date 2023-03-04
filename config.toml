@@ -1,77 +1,46 @@
-baseurl = "https://rbino.com"
+baseURL = "https://rbino.com"
+DefaultContentLanguage = "en"
+languageCode = "en-us"
 title = "rbino"
-theme = "hugo-coder"
-languagecode = "en"
-defaultcontentlanguage = "en"
+theme = "diary"
 
-paginate = 20
-canonifyurls = true
-
-pygmentsStyle = "monokai"
-pygmentsCodeFences = true
-pygmentsCodeFencesGuessSyntax = true
+[markup]
+  [markup.highlight]
+    codeFences = true
+    guessSyntax = true
+    hl_Lines = ""
+    lineNoStart = 1
+    lineNos = false
+    lineNumbersInTable = true
+    noClasses = true
+    style = "monokai"
+    tabWidth = 4
+  [markup.goldmark.renderer]
+    unsafe = true
 
 [params]
-    author = "Riccardo Binetti"
-    info = "Software developer"
-    description = "rbino's website"
-    keywords = "blog,developer,personal"
-    avatarurl = "images/rbino-avatar.jpg"
-
-    favicon_16 = "images/favicon16.png"
-    favicon_32 = "images/favicon32.png"
-
-    hidecredits = true
-    hidecopyright = false
-    since = 2019
-
-    colorScheme = "dark"
-    hidecolorschemetoggle = false
-
-    rtl = false
-
-    math = true
-    customCSS = ["css/custom.css"]
+author = "Riccardo Binetti"
+subtitle = "Shave all the yaks"
+keywords = "blog,developer,personal"
+description = "rbino's Personal Blog"
+favicon = "images/favicon32.png"
+enableOpenGraph = true
+enableTwitterCards = true
+disableToC = true
 
 [taxonomies]
-    category = "categories"
-    series = "series"
-    tag = "tags"
-
-# Social links
-[[params.social]]
-    name = "Github"
-    icon = "fa fa-github fa-2x"
-    weight = 1
-    url = "https://github.com/rbino/"
-[[params.social]]
-    name = "Soundcloud"
-    icon = "fa fa-soundcloud fa-2x"
-    weight = 2
-    url = "https://soundcloud.com/rbino"
-[[params.social]]
-    name = "Twitter"
-    icon = "fa fa-twitter fa-2x"
-    weight = 3
-    url = "https://twitter.com/errebino/"
-[[params.social]]
-    name = "Medium"
-    icon = "fa fa-medium fa-2x"
-    weight = 4
-    url = "https://medium.com/@rbino/"
-
-# Menu links
-[[menu.main]]
-    name = "About"
-    weight = 1
-    url = "/about"
+tag = "tags"
+category = "categories"
 
 [[menu.main]]
-    name = "Blog"
-    weight = 2
-    url = "/posts"
-
+url = "/about"
+name = "About"
+weight = 20
 [[menu.main]]
-    name = "License"
-    weight = 3
-    url = "/license"
+url = "/license"
+name = "License"
+weight = 30
+[[menu.main]]
+url = "/index.xml"
+name = "RSS Feed"
+weight = 40
