@@ -1,0 +1,23 @@
+{
+  "aliases": [
+    "https://patavium.social/@rbino",
+    "https://patavium.social/users/rbino"
+  ],
+  "links": [
+    {
+      "href": "https://patavium.social/@rbino",
+      "rel": "http://webfinger.net/rel/profile-page",
+      "type": "text/html"
+    },
+    {
+      "href": "https://patavium.social/users/rbino",
+      "rel": "self",
+      "type": "application/activity+json"
+    },
+    {
+      "rel": "http://ostatus.org/schema/1.0/subscribe",
+      "template": "https://patavium.social/authorize_interaction?uri={uri}"
+    }
+  ],
+  "subject": "acct:rbino@rbino.com"
+}
