@@ -1,10 +1,9 @@
 ---
+date: 2021-04-01T00:59:54+02:00
 title: "About"
 draft: false
 hidden: true
 ---
-![](/images/rbino-avatar.jpg)
-
 Hi, I'm Riccardo!
 
 During the day I mostly do backend development using Elixir, but I also like messing with other
@@ -20,6 +19,6 @@ blog is also meant to force myself into finishing things so I can write about th
 
 - [GitHub](https://github.com/rbino)
 - [Mastodon](https://patavium.social/rbino)
-- [SoundCloud](https://soundcloud.com/errebino)
+- [SoundCloud](https://soundcloud.com/rbino)
 - [Twitter](https://twitter.com/errebino)
 - [Email](mailto:rbino@gmx.com)

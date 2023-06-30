@@ -2,45 +2,54 @@ baseURL = "https://rbino.com"
 DefaultContentLanguage = "en"
 languageCode = "en-us"
 title = "rbino"
-theme = "diary"
-
-[markup]
-  [markup.highlight]
-    codeFences = true
-    guessSyntax = true
-    hl_Lines = ""
-    lineNoStart = 1
-    lineNos = false
-    lineNumbersInTable = true
-    noClasses = true
-    style = "monokai"
-    tabWidth = 4
-  [markup.goldmark.renderer]
-    unsafe = true
+theme = "hugo-ficurinia"
+copyright = "Riccardo Binetti - [License](/license)"
 
 [params]
-author = "Riccardo Binetti"
-subtitle = "Shave all the yaks"
-keywords = "blog,developer,personal"
-description = "rbino's Personal Blog"
-favicon = "images/favicon32.png"
-enableOpenGraph = true
-enableTwitterCards = true
-disableToC = true
+  author = "Riccardo Binetti"
+  description = "Shave all the yaks"
 
-[taxonomies]
-tag = "tags"
-category = "categories"
+  # It's best to put these icons in the "static" folder of your site
+  logo = "/images/logo.svg"
+  favicon = "/images/favicon32.png"  # 32x32
+  svgicon = "/images/logo.svg"
 
-[[menu.main]]
-url = "/about"
-name = "About"
-weight = 20
-[[menu.main]]
-url = "/license"
-name = "License"
-weight = 30
-[[menu.main]]
-url = "/index.xml"
-name = "RSS Feed"
-weight = 40
+  showRSS = false
+  enableSearch = true
+
+  enableShareOnFediverse = true
+
+[menu]
+  [[menu.main]]
+    url = "/about"
+    name = "About"
+    weight = 20
+
+  [[menu.icons]]
+    identifier = "github"
+    name = "GitHub"
+    url = "https://github.com/rbino"
+    weight = 10
+  [[menu.icons]]
+    identifier = "mastodon"
+    name = "Mastodon"
+    url = "https://patavium.social/rbino"
+    weight = 20
+  [[menu.icons]]
+    identifier = "soundcloud"
+    name = "SoundCloud"
+    url = "https://soundcloud.com/rbino"
+    weight = 30
+  [[menu.icons]]
+    identifier = "email"
+    name = "Email"
+    url = "mailto:rbino@gmx.com"
+    weight = 40
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+[outputs]
+    home = ["HTML", "JSON"]
