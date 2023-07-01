@@ -1,8 +1,9 @@
 ---
-date: 2021-04-01T00:59:54+02:00
 title: "About"
 draft: false
 hidden: true
+showDate: false
+showShare: false
 ---
 Hi, I'm Riccardo!
 
