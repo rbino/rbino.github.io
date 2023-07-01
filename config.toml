@@ -14,7 +14,11 @@ copyright = "Riccardo Binetti - [License](/license)"
   favicon = "/images/favicon32.png"  # 32x32
   svgicon = "/images/logo.svg"
 
+  fontFamily = "Dosis"
+  contentWidth = "800px"
+
   enableSearch = true
+  enableSidebarLayout = true
 
   enableShareOnFediverse = true
 
