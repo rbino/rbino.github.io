@@ -21,5 +21,4 @@ blog is also meant to force myself into finishing things so I can write about th
 - [GitHub](https://github.com/rbino)
 - [Mastodon](https://patavium.social/rbino)
 - [SoundCloud](https://soundcloud.com/rbino)
-- [Twitter](https://twitter.com/errebino)
 - [Email](mailto:rbino@gmx.com)
