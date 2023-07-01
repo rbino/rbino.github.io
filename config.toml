@@ -32,7 +32,7 @@ copyright = "Riccardo Binetti - [License](/license)"
   [[menu.icons]]
     identifier = "mastodon"
     name = "Mastodon"
-    url = "https://patavium.social/rbino"
+    url = "https://patavium.social/@rbino"
     weight = 20
   [[menu.icons]]
     identifier = "soundcloud"
