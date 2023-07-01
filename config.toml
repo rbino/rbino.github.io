@@ -14,7 +14,6 @@ copyright = "Riccardo Binetti - [License](/license)"
   favicon = "/images/favicon32.png"  # 32x32
   svgicon = "/images/logo.svg"
 
-  showRSS = false
   enableSearch = true
 
   enableShareOnFediverse = true
