@@ -14,13 +14,14 @@ copyright = "Riccardo Binetti - [License](/license)"
   favicon = "/images/favicon32.png"  # 32x32
   svgicon = "/images/logo.svg"
 
-  fontFamily = "Dosis"
+  fontFamily = "Roboto"
+  monoFontSizeMultiplier = 1.15
   contentWidth = "800px"
 
-  enableSearch = true
+  enableSearch = false
   enableSidebarLayout = true
-
-  enableShareOnFediverse = true
+  showPostsLink = false
+  paperCards = true
 
 [menu]
   [[menu.main]]
