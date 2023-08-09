@@ -51,10 +51,10 @@ hosted in the environment that is passed as first parameter, including the retur
 
 ## The Issue
 
-Let's show an example to highlight what the problem is. We will implement 3 different NIFs:
-`add_two_ints`, `multiply_three_doubles` and ``
+Let's show an example to highlight what the problem is. We will start implementing 2 different NIFs:
+`add_two_ints`, `multiply_three_doubles`.
 
-We will assume to have some helpers to convert terms to and from Zig values[^3]. 
+We will assume to have some helpers to convert terms to and from Zig values[^3].
 
 Here's the implementation of our NIFs:
 
