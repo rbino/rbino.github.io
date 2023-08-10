@@ -7,7 +7,7 @@ tags: ["zig", "elixir", "erlang", "nif", "comptime"]
 
 If you've heard about [Zig](https://ziglang.org/), you've probably heard about `comptime`, its
 mechanism for doing introspection, metaprogramming, and more. I'm probably in my honeymoon phase
-with `comptime` and I like to throw it at almost everything. The cool thing about it is that you
+with `comptime` and I like to throw it at almost everything. The great thing about it is that you
 write some code and think "This makes sense, will it Just Work™?" and it actually does.
 
 Today I'm going to show you an example of how it can be used to abstract away some common code that
@@ -16,7 +16,7 @@ clear in its intentions by removing some mechanical noise.
 
 Note that you usually don't have to implement this manually if you want to write a NIF using Zig,
 since [Zigler](https://github.com/E-xyza/zigler) takes care of this for you. This is mainly meant
-as an example that shows some `comptime` features.
+as an example that shows some `comptime` cool features.
 
 ## NIF Interface
 
@@ -39,15 +39,15 @@ or, using Zig[^2]
 ```
 
 A couple of definitions can make the signature clearer:
-- A term represents a value in the Erlang VM. It is an opaque type and the values can be extracted
+- A _term_ represents a value in the Erlang VM. It is an opaque type and the values can be extracted
   from a term using functions in the `erl_nif` API. Conversely, "native" values have to be converted
   to a term before being returned from the NIF.
-- An environment is a structure that hosts Erlang terms. Terms cannot be destructed individually,
+- An _environment_ is a structure that hosts Erlang terms. Terms cannot be destructed individually,
   their lifetime is bound to the one of their environment.
 
 From these definitions we can see our NIF accepts an environment as first parameter, then an
-argument count and then a pointer to an array of terms, and it returns a term. All the terms are
-hosted in the environment that is passed as first parameter, including the returned term.
+argument count and then a pointer to an array of argument terms, and it returns a term. All the
+terms are hosted in the environment that is passed as first parameter, including the returned term.
 
 ## The Issue
 
@@ -110,7 +110,7 @@ for it?
 
 ## `comptime` to the Rescue
 
-First, we're going to tackle the input arguments, since they're the one causing most of the noise.
+First, we're going to tackle the input arguments, since they're the ones causing most of the noise.
 Our new functions will just be:
 
 ```zig
@@ -134,22 +134,12 @@ fn multiply_three_doubles_impl(env: beam.Env, a: f64, b: f64, c: f64) beam.Term 
 That's already much better! Of course the interesting part is the implementation of
 `make_nif_wrapper`. Since there's a lot to unpack there, let's go through it bit by bit.
 
-In the beginning, we just define a handy `Nif` type that that is a shorthand for the NIF interface
-we talked about earlier.
-
 ```zig
 const Nif = *const fn (beam.Env, argc: c_int, argv: [*c]const beam.Term) callconv(.C) beam.Term;
 ```
 
-The `make_nif_wrapper` function takes a `comptime` parameter of type `anytype`. This is because the
-different functions we're going to pass to `make_nif_wrapper` will have different types. Inside the
-function, we assign the actual type of the function to the `Function` constant, then we verify that
-it's actually a function and if it is, we extract its type info.
-
-From the info, we extract the parameter info, which is useful to check that the first parameter has
-the `beam.Env` type (that's a requirement of our current interface since the function must have an
-environment to make its return value) and we save the expected `argc` (which is the lenght of the
-params minus one since `env` is passed separately, not in `argv`).
+In the beginning, we just define a handy `Nif` type that that is a shorthand for the NIF interface
+we talked about earlier.
 
 ```zig
 fn make_nif_wrapper(comptime fun: anytype) Nif {
@@ -164,24 +154,18 @@ fn make_nif_wrapper(comptime fun: anytype) Nif {
     if (params[0].type != beam.Env) {
         @compileError("The type of the first parameter of a NIF must be `beam.Env`");
     }
+    // Env is not counted in argc, so subtract one
     const expected_argc = params.len - 1;
 ```
 
-After we have all this information, we can create our NIF wrapper. We start by creating an anonymous
-struct, which contains a function. If you skip at the and, you can see we then return just the
-function with `.wrapper`. This is the usual pattern to create a pointer to an "anonymous" function
-in Zig.
+The `make_nif_wrapper` function takes a `comptime` parameter of type `anytype`. This is because the
+different functions we're going to pass to `make_nif_wrapper` will have different types. Inside the
+function, we assign the actual type of the function to the `Function` constant, we verify that it's
+actually a function, and, if it is, we extract its type info.
 
-The `wrapper` function implements our NIF interface, and it starts by checking that `argc` actually
-matches `expected_argc`. Since this should be ensured by the Erlang VM, we `@panic` if it does not.
-
-After creating the `argv_slice` as before, we have to deal with calling our `impl` function. To do
-that, we use the `@call` builtin, which allows calling a function given its address and a tuple
-containing its arguments. The `std.meta.ArgsTuple` conveniently returns the tuple type of the
-correct size and types to contain the arguments of a given function type, so we just have to iterate
-through all the elements of the tuple with `inline for`, having care of adjusting the offset between
-`args` and `argv` due to the abscence of `env` in `argv`, and assigning all the arguments after
-extracting them from their `beam.Term`.
+From the info, we extract the parameter info, which is useful to ensure that the first parameter has
+the `beam.Env` type (that's a requirement of our current interface since the function must have an
+environment to make its return value) and we save the expected `argc`.
 
 ```zig
     return struct {
@@ -200,6 +184,7 @@ extracting them from their `beam.Term`.
                     continue;
                 }
 
+                // Adjust for the abscence of env in argv
                 const argv_idx = arg_idx - 1;
                 const ArgType = @TypeOf(arg.*);
                 arg.* = get_arg_from_term(ArgType, env, argv_slice[argv_idx]) catch
@@ -212,10 +197,25 @@ extracting them from their `beam.Term`.
 }
 ```
 
+After we have all this information, we can create our NIF wrapper. We start by creating an anonymous
+struct, which contains a `wrapper` function definition. If you skip at the and, you can see we then
+return just the function with `.wrapper`. This is the usual pattern to create a pointer to an
+"anonymous" function in Zig.
+
+The `wrapper` function implements our NIF interface, and it starts by checking that `argc` actually
+matches `expected_argc`. Since this should be ensured by the Erlang VM, we `@panic` if it does not.
+
+After creating the `argv_slice` as before, we have to deal with calling our `impl` function. To do
+that, we use the `@call` builtin, which allows calling a function given its address and a tuple
+containing its arguments. The `std.meta.ArgsTuple` conveniently returns the tuple type of the
+correct size and types to contain the arguments of a given function type, so we just have to iterate
+through all the elements of the tuple with `inline for` and assigning all the arguments after
+extracting them from their `beam.Term`.
+
 The only piece missing is the implementation of `get_arg_from_term`. This basically just switches on
 the type of the argument and calls the appropriate `beam.get` function. The implementation also
-includes a useful compile error on missing types so the compiler can guide us if we add a new NIF
-with an unsupported argument type.
+includes a useful compilation error on missing types so the compiler can guide us if we add a new
+NIF with an unsupported argument type.
 
 ```zig
 fn get_arg_from_term(comptime T: type, env: beam.Env, term: beam.Term) !T {
@@ -241,7 +241,7 @@ fn term_burrito_impl(env: beam.Env, term: beam.Term) beam.Term {
 }
 ```
 
-In this case we still unwrap the `argv` in single args, but our input is a `beam.Term`. The change
+In this case we still unwrap the `argv` into single args, but our input is a `beam.Term`. The change
 to support that is literally one line.
 
 ```diff
@@ -257,11 +257,11 @@ If we encounter a `beam.Term` in `get_arg_from_term`, we simply return it as-is.
 
 ## `comptime` Returns
 
-As the last step in this example, let's try to include in our NIF wrapper also the conversion of the
+As the last step in this example, let's also try to include in our NIF wrapper the conversion of the
 return value back to a `beam.Term`.
 
 `term_burrito_impl` remains the same since it's accepting and returning a `beam.Term`, while the
-first to `impl`s become
+first two `impl`s become just
 
 ```zig
 fn add_two_ints_impl(a: u32, b: u32) u32 {
@@ -277,10 +277,6 @@ Note that we don't need the `env` anymore since we're not using it inside the fu
 still need it for `term_burrito`, so we have to handle both cases. Let's see how the implementation
 of `make_nif_wrapper` changes.
 
-First, we determine if our function accepts `env` as first parameter (removing the previous check),
-and based on that we also set the offset between `args` and `argv` to `0` or `1`. Once we have the
-offset, we can calculate `expected_argc`.
-
 ```diff
 -    if (function_info.params[0].type != beam.Env) {
 -        @compileError("The type of the first parameter of a NIF must be `beam.Env`");
@@ -291,8 +287,9 @@ offset, we can calculate `expected_argc`.
 +    const expected_argc = params.len - env_offset;
 ```
 
-We use again the information about the presence of `env` and the offset in the loop that populates
-the args.
+First, we determine if our function accepts `env` as first parameter (removing the previous check),
+and based on that we also set the offset between `args` and `argv` to `0` or `1`. Once we have the
+offset, we can calculate `expected_argc`.
 
 ```diff
 -                if (arg_idx == 0) {
@@ -309,13 +306,16 @@ the args.
              }
 ```
 
-In the end, we call `make_result_term` on the result before returning it.
+We use again the information about the presence of `env` and the offset in the loop that populates
+the args.
 
 ```diff
 -            return @call(.auto, fun, args);
 +            const result = @call(.auto, fun, args);
 +            return make_result_term(env, result);
 ```
+
+Finally, we call `make_result_term` on the result before returning it.
 
 ```zig
 fn make_result_term(env: beam.Env, result: anytype) beam.Term {
@@ -329,14 +329,16 @@ fn make_result_term(env: beam.Env, result: anytype) beam.Term {
 ```
 
 Note that we don't have to pass the type explicitly here, since we can extract it from the type of
-the result (while in `get_args_from_term` we couldn't because the input was always a `beam.Term`).
+the result, while in `get_args_from_term` we couldn't because the input was always a `beam.Term`.
+If we had needed the return type from the function type info, we could have used
+`function_info.return_type`.
 
 ## Conclusion
 
-This concludes our current `comptime` journey. You can find the working code (with a separate commit
-for each section) [on GitHub](https://github.com/rbino/wrap_your_nif).
+This concludes our `comptime` journey. You can find the working code (with a separate commit for
+each section) [on GitHub](https://github.com/rbino/wrap_your_nif).
 
-While this is a minimal example and you end up probably writing _more_ code than in the beginning,
+While this is a minimal example, and you probably end up writing _more_ code than in the beginning,
 this is amortized once you have many different NIFs, and in fact this exact technique helped me
 reduce mechanical noise by a lot in my [Elixir TigerBeetle
 client](https://github.com/rbino/tigerbeetlex/pull/25) (I will explore that a little more in a
