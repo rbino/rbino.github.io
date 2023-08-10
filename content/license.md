@@ -4,6 +4,7 @@ draft: false
 hidden: true
 showDate: false
 showShare: false
+norss: true
 ---
 ## Content license
 All non-code blog content is licensed under the

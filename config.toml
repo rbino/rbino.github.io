@@ -56,4 +56,4 @@ copyright = "Riccardo Binetti - [License](/license)"
       unsafe = true
 
 [outputs]
-    home = ["HTML", "JSON"]
+    home = ["html", "json", "rss"]

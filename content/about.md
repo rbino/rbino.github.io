@@ -4,6 +4,7 @@ draft: false
 hidden: true
 showDate: false
 showShare: false
+norss: true
 ---
 Hi, I'm Riccardo!
 
