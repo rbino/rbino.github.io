@@ -11,8 +11,11 @@ copyright = "Riccardo Binetti - [License](/license)"
 
   # It's best to put these icons in the "static" folder of your site
   logo = "/images/logo.svg"
-  favicon = "/images/favicon32.png"  # 32x32
+  favicon = "/images/favicon32.png"
+  faviconIco = "/favicon.ico"
   svgicon = "/images/logo.svg"
+  appletouch = "/images/apple-touch-icon.png"
+  icon512 = "/images/icon512.png"
 
   fontFamily = "Roboto"
   monoFontSizeMultiplier = 1.15
