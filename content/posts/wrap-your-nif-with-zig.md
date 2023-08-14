@@ -54,7 +54,9 @@ terms are hosted in the environment that is passed as first parameter, including
 Let's show an example to highlight what the problem is. We will start implementing 2 different NIFs:
 `add_two_ints`, `multiply_three_doubles`.
 
-We will assume to have some helpers to convert terms to and from Zig values[^3].
+We will assume to have some helpers to convert terms to and from Zig values[^3]. Note that these
+helpers already help us reduce some of the noise thanks to the fact that Zig allows returning
+errors from functions.
 
 Here's the implementation of our NIFs:
 
