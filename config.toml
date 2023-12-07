@@ -1,57 +1,70 @@
 baseURL = "https://rbino.com"
-DefaultContentLanguage = "en"
 languageCode = "en-us"
 title = "rbino"
-theme = "hugo-ficurinia"
-copyright = "Riccardo Binetti - [License](/license)"
+theme = "archie"
+copyright = "© rbino"
+
+pygmentsstyle = "monokai"
+pygmentscodefences = true
+pygmentscodefencesguesssyntax = true
 
 [params]
-  author = "Riccardo Binetti"
-  description = "Shave all the yaks"
+  mode = "auto"
+  useCDN = false
+  subtitle = "Days since last theme change: 0.<br/>Days since last post: probably more."
+  mathjax = true
+  katex = true
+  favicon = "images/icon512.png"
 
-  # It's best to put these icons in the "static" folder of your site
-  logo = "/images/logo.svg"
-  favicon = "/images/favicon32.png"
-  faviconIco = "/favicon.ico"
-  svgicon = "/images/logo.svg"
-  appletouch = "/images/apple-touch-icon.png"
-  icon512 = "/images/icon512.png"
+[[params.social]]
+name = "GitHub"
+icon = "github"
+url = "https://github.com/rbino/"
 
-  fontFamily = "Roboto"
-  monoFontSizeMultiplier = 1.15
-  contentWidth = "800px"
+[[params.social]]
+name = "Mastodon"
+icon = "message-square"
+url = "https://patavium.social/@rbino/"
 
-  enableSearch = false
-  enableSidebarLayout = true
-  showPostsLink = false
-  paperCards = true
+[[params.social]]
+name = "SoundCloud"
+icon = "music"
+url = "https://soundcloud.com/rbino/"
 
-[menu]
-  [[menu.main]]
-    url = "/about"
-    name = "About"
-    weight = 20
+[[params.social]]
+name = "Email"
+icon = "mail"
+url = "mailto:rbino@gmx.com"
 
-  [[menu.icons]]
-    identifier = "github"
-    name = "GitHub"
-    url = "https://github.com/rbino"
-    weight = 10
-  [[menu.icons]]
-    identifier = "mastodon"
-    name = "Mastodon"
-    url = "https://patavium.social/@rbino"
-    weight = 20
-  [[menu.icons]]
-    identifier = "soundcloud"
-    name = "SoundCloud"
-    url = "https://soundcloud.com/rbino"
-    weight = 30
-  [[menu.icons]]
-    identifier = "email"
-    name = "Email"
-    url = "mailto:rbino@gmx.com"
-    weight = 40
+[[params.social]]
+name = "RSS"
+icon = "rss"
+url = "/index.xml"
+
+[[menu.main]]
+name = "Home"
+url = "/"
+weight = 10
+
+[[menu.main]]
+name = "All posts"
+url = "/posts"
+weight = 20
+
+[[menu.main]]
+name = "About"
+url = "/about"
+weight = 30
+
+[[menu.main]]
+name = "Tags"
+url = "/tags"
+weight = 40
+
+[[menu.main]]
+name = "License"
+url = "/license"
+weight = 50
 
 [markup]
   [markup.goldmark]
@@ -59,4 +72,4 @@ copyright = "Riccardo Binetti - [License](/license)"
       unsafe = true
 
 [outputs]
-    home = ["html", "json", "rss"]
+  home = ["html", "rss"]

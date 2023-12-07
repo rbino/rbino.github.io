@@ -1,10 +1,7 @@
 ---
 title: "About"
+date: 2019-10-18
 draft: false
-hidden: true
-showDate: false
-showShare: false
-norss: true
 ---
 Hi, I'm Riccardo!
 
