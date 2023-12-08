@@ -17,6 +17,11 @@ pygmentscodefencesguesssyntax = true
   favicon = "images/icon512.png"
 
 [[params.social]]
+name = "Home"
+icon = "home"
+url = "/"
+
+[[params.social]]
 name = "GitHub"
 icon = "github"
 url = "https://github.com/rbino/"
@@ -47,8 +52,8 @@ url = "/"
 weight = 10
 
 [[menu.main]]
-name = "All posts"
-url = "/posts"
+name = "Tags"
+url = "/tags"
 weight = 20
 
 [[menu.main]]
@@ -57,14 +62,9 @@ url = "/about"
 weight = 30
 
 [[menu.main]]
-name = "Tags"
-url = "/tags"
-weight = 40
-
-[[menu.main]]
 name = "License"
 url = "/license"
-weight = 50
+weight = 40
 
 [markup]
   [markup.goldmark]
