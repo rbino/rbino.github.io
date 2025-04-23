@@ -17,6 +17,6 @@ blog is also meant to force myself into finishing things so I can write about th
 ## Socials and contacts
 
 - [GitHub](https://github.com/rbino)
-- [Mastodon](https://patavium.social/rbino)
+- [Bluesky](https://bsky.app/profile/rbino.com)
 - [SoundCloud](https://soundcloud.com/rbino)
 - [Email](mailto:rbino@gmx.com)
