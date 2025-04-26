@@ -1,5 +1,6 @@
 ---
 title: "License"
+hideDate: true
 date: "2019-10-18"
 draft: false
 ---
