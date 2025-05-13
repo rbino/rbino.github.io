@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>TigerBeetlex: an Elixir and Zig love story</title>
+
+    <link rel="stylesheet" href="dist/reset.css">
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/beige.css">
+
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="//unpkg.com/@catppuccin/highlightjs@1.0.1/css/catppuccin-latte.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section data-markdown data-transition="none">
+          <script type="text/template">
+            # TigerBeetlex
+
+            An Elixir and Zig love story
+
+            ---
+
+            1. Scaling financial transactions
+            2. Intro to TigerBeetle
+            3. TigerBeetlex
+            4. Under the hood & future directions
+            ---
+
+            ## `whoami`
+
+            - Riccardo Binetti (rbino)
+            - Senior Backend Developer @ Remote
+            - Using Elixir as main language since 2017
+
+            notes:
+            My name is Riccardo Binetti, you might also know me online as rbino. I currently work as a Senior Backend Developer at Remote, and I've been happily using Elixir as my main language since about 2017.
+            So let's start with a question:
+
+            ---
+
+            # What is a transaction?
+
+            ---
+            Postgres tutorial - 3.4 Transactions
+
+            ```postgres [|1|3-9|5,9|11|13-23|25]
+            BEGIN;
+
+            SELECT balance FROM accounts
+            WHERE name = 'Alice'
+            FOR UPDATE;
+
+            SELECT balance FROM accounts
+            WHERE name = 'Bob'
+            FOR UPDATE;
+
+            -- Application side checks
+
+            UPDATE accounts SET balance = balance - 100.00
+            WHERE name = 'Alice';
+
+            UPDATE accounts SET balance = balance + 100.00
+            WHERE name = 'Bob';
+
+            INSERT INTO transfers (name, type, amount, transfer_time)
+            VALUES ('Alice', 'debit', 100.00, now());
+
+            INSERT INTO transfers (name, type, amount, transfer_time)
+            VALUES ('Bob', 'credit', 100.00, now());
+
+            COMMIT;
+            ```
+
+            notes:
+            The term has different meanings, and in fact Postgres documentation
+            shows something that is both:
+            - A database transaction
+            - A financial transaction
+
+            - Application checks
+              - Can be dynamic, not always implementable at the DB level
+
+            - Can also be called transaction/posting
+              - We're going to use transfer
+
+            The important thing to notice: we're now at 6 SQL queries
+              - We didn't even record the balance "snapshot"
+
+            ---
+
+            ## 1 Financial Transaction
+            ## ~10 SQL queries
+
+            notes:
+            The example is deliberately simple, but financial systems in the real world
+            execute between 10 and 20 SQL queries for each financial transactions.
+            Moreover transactions are not easy to shard.
+
+            ---
+
+            🔥 Hot accounts 🔥
+
+            ```postgres [|3]
+            SELECT quantity FROM holdings
+            WHERE stock_symbol = 'NVDA'
+            FOR UPDATE;
+            ```
+
+            notes:
+            - Pareto: 20% of accounts is involved in 80% of transactions
+
+            ---
+
+            #### We live in an increasingly transactional world
+
+            notes:
+            - Online shops
+            - Real time payments
+              - UPI in India (2019: 10B, Jan '24 12B)
+              - Pix in Brazil (10M transactions/day)
+            - Renewable energy
+              - Making transacting energy prices more often convenient
+
+            ---
+
+            ### How do we scale financial transactions?
+
+            ---
+
+            ![TigerBeetle logo](images/tigerbeetle.svg)
+
+            ---
+
+            > TigerBeetle is a reliable, fast, and highly available database for financial accounting
+
+            notes:
+            There are many tricks up TigerBeetle's sleeve, but the most fundamental one is
+
+            ---
+
+            ## Speaks the language of
+            ## financial transactions
+
+            notes:
+            Instead of using SQL
+
+            ---
+
+            ## 1 Financial Transaction
+            ### 128 bytes, zero deserialization
+
+            notes:
+            - Contrast this single, optimized 128-byte operation with the ~10 complex SQL queries we saw earlier
+            - This is a fundamental reason for TigerBeetle's performance gains
+
+            ---
+
+            ## Batching
+
+            ---
+
+            ## 1 TigerBeetle Query
+            ### 8189 Transactions (1 MiB)
+
+            notes:
+            But do we have everything we need?
+
+            ---
+
+            ```zig[|2|3,4|5|14|7-9,11,12]
+            pub const Transfer = extern struct {
+                id: u128,
+                debit_account_id: u128,
+                credit_account_id: u128,
+                amount: u128,
+                pending_id: u128,
+                user_data_128: u128,
+                user_data_64: u64,
+                user_data_32: u32,
+                timeout: u32,
+                ledger: u32,
+                code: u16,
+                flags: TransferFlags,
+                timestamp: u64,
+            };
+            ```
+
+            notes:
+            - Who
+            - How much
+            - When
+            - What/why/how (stored in the application or Postgres)
+            - Ledger logically isolates Accounts and Transfers
+              - Transfers can happen only between Accounts with the same Ledger
+            - Code is application defined 
+
+            ---
+
+            ```zig[|2|4,6|7-9]
+            pub const Account = extern struct {
+                id: u128,
+                debits_pending: u128,
+                debits_posted: u128,
+                credits_pending: u128,
+                credits_posted: u128,
+                user_data_128: u128,
+                user_data_64: u64,
+                user_data_32: u32,
+                reserved: u32,
+                ledger: u32,
+                code: u16,
+                flags: AccountFlags,
+                timestamp: u64,
+            };
+            ```
+
+            notes:
+            Account:
+            - One interesting thing to notice is that debits and credits are always positive
+            - The balance is calculated subtracting one from the other, depending on the type of account
+            - All richer application data goes into your Postgres
+
+            ---
+
+            #### TigerBeetle (OLTP) as your data plane
+            #### Generic database (OLGP) as your control plane
+
+            notes:
+            - Think of TigerBeetle as the high-speed engine for your core ledger operations (the data plane).
+            - You still use your regular database like Postgres/MySQL for richer application data, user info, reporting, etc. (the control plane).
+
+            Now, performance is only one side of this. When you deal with financial data you also care about
+
+            ---
+
+            # Safety and durability
+
+            ---
+
+            ## Viewstamped Replication
+
+            notes:
+            - Developed by Brian Oki and Barbara Liskov in 1988
+            - One year before Paxos
+            - Replicated state machine
+            - The cost of consensus is amortized by batching
+            - Strict serializability
+
+            ---
+
+            ## Storage fault tolerance
+
+            notes:
+            - TigerBeetle assumes that its disk will fail
+            - The data file is bit-by-bit identical on all replicas
+            - In case of a latent sector error, the error is detected and repaired without any operator involvement
+              - Most consensus implementations lose data or become unavailable if the write-ahead log gets corrupted.
+            - TigerBeetle uses Protocol Aware Recovery to remain available unless the data gets corrupted on every single replica
+            - No file system necessary
+
+            ---
+
+            ## Software reliability
+
+            notes:
+
+            ---
+
+            ![TigerStyle logo](images/tigerstyle.jpg)
+
+            notes:
+            - Tiger Style is TigerBeetle's development philosophy
+            - Partially derived from NASA's power of ten rules
+            - I'd suggest reading them all but here's a familiar excerpt
+
+            ---
+
+            > Assertions downgrade catastrophic correctness bugs into liveness bugs.
+            > <br/>
+            > **The only correct way to handle corrupt code is to crash**.
+
+            ---
+
+            ## Deterministic simulation testing
+
+            notes:
+            Everything is deterministic and can be simulated:
+            - IO (Network)
+            - Storage
+            - 100 simulation cores = 2 centuries every day
+
+            ---
+
+            ![VOPR Issue](images/vopr.png)
+
+            ---
+
+            # <img src="images/tigerbeetle_t.svg" height="200" style="vertical-align:middle"> + <img src="images/elixir.svg" height="200" style="vertical-align:middle">
+
+            ---
+
+            # TigerBeetlex
+
+            ---
+
+            ## Elixir client for TigerBeetle
+
+            ---
+
+            ### NIF written in Zig
+            #### Implemented on top of the Zig TigerBeetle client
+
+            notes:
+            This means TigerBeetlex benefits directly from the core team's work on safety, performance, and features in the underlying Zig client. We're essentially creating efficient Elixir bindings, not reinventing the wheel.
+
+            This is how all TigerBeetle clients are implemented
+            - Go
+            - C#
+            - Python
+            - Java
+            - Node
+
+            You get:
+            - Safety (TigerStyle)
+            - Automatic batching
+
+            ---
+
+            - Message based API
+            - Blocking API
+            - TigerBeetle binary data `<->` Elixir structs
+
+            ---
+
+            ## Available Requests
+
+            ---
+
+            ### Write requests
+
+            - `create_accounts`
+            - `create_transfers`
+
+            ---
+
+            ### Read requests (by ID)
+
+            - `lookup_accounts`
+            - `lookup_transfers`
+
+            ---
+
+            ### Read requests (by Filter)
+
+            - `get_account_transfers`
+            - `get_account_balances`
+            - `query_accounts`
+            - `query_transfers`
+
+            notes:
+            - Filter-based requests have an explicit limit and are paginatable using timestamps
+            - Experimental APIs
+
+            ---
+
+            ## Message based API
+
+            ---
+
+            Creating the client
+
+            ```elixir[]
+
+            cluster_id = <<0::128>>
+            addresses = ["127.0.0.1:3000"]
+
+            {:ok, client} = Client.new(cluster_id, addresses)
+            ```
+
+            ---
+
+            #### `client` can (and _should_) be shared
+
+            notes:
+            - Allows automatic batching
+              - But it's always better to explicitly batch
+
+            ---
+
+            Sending a request
+
+            ```elixir[]
+            alias TigerBeetlex.Account
+
+            account_0 = %Account{id: <<42::128>>, ledger: 3, code: 4}
+            account_1 = %Account{id: <<43::128>>, ledger: 3, code: 4}
+
+            accounts = [account_0, account_1] # Up to 8189 accounts
+
+            {:ok, ref} = Client.create_accounts(client, accounts)
+            ```
+
+            ---
+
+            Receiving the response
+
+            ```elixir[]
+            {:ok, response} = Client.receive_and_decode(ref)
+
+            # Shorthand for
+            #
+            # receive do
+            #   {:tigerbeetlex_response, ^ref, response} ->
+            #     Response.decode(response)
+            # end
+
+
+            ---
+
+            Receiving the response
+
+            ```elixir[]
+            def handle_info({:tigerbeetlex_response, ref, resp}, state) do
+              case Response.decode(resp) do
+                #...
+              end
+            end
+            ```
+
+            ---
+
+            ## Blocking API
+
+            ---
+
+            Starting the connection
+
+            ```elixir[|5]
+            alias TigerBeetlex.Connection
+
+            {:ok, _supervisor_pid} =
+              Connection.start_link(
+                name: :tb,
+                cluster_id: <<0::128>>,
+                addresses: ["127.0.0.1:3000"]
+              )
+            ```
+
+            ---
+
+            Sending a blocking request
+
+            ```elixir[]
+            alias TigerBeetlex.Account
+
+            account_0 = %Account{id: <<42::128>>, ledger: 3, code: 4}
+            account_1 = %Account{id: <<43::128>>, ledger: 3, code: 4}
+
+            accounts = [account_0, account_1] # Up to 8189 accounts
+
+            {:ok, response} = Connection.create_accounts(:tb, accounts)
+            ```
+
+            ---
+
+            ### Message based API
+            - Can plug into existing GenServer architecture
+            - More flexible async handling
+            - `client` needs to be passed to the process
+
+            ---
+
+            ### Blocking API
+            - Easier to get started with
+            - Centralized client
+            - Could leave the caller blocked
+
+            ---
+
+            ## Advanced usage
+
+            ---
+
+            ### Error responses
+
+            ---
+
+            ```elixir[]
+            account_0 = %Account{id: <<42::128>>, ledger: 3, code: 4}
+            account_1 = %Account{id: <<0::128>>, ledger: 3, code: 4}
+
+            accounts = [account_0, account_1]
+
+            {:ok, result} = Connection.create_accounts(:tb, accounts)
+
+            result
+            # => [
+            # =>   %CreateAccountsResult{
+            # =>     index: 1,
+            # =>     reason: :id_must_not_be_zero
+            # =>   }
+            # => ]
+            ```
+
+            notes:
+            CHECKPOINT: 18-19 minutes
+
+            ---
+
+            ### Linked Events
+
+            ---
+
+            ```elixir[|4|12|20]
+            account_0 =
+              %Account{
+                id: <<42::128>>,
+                flags: %AccountFlags{linked: true},
+                ledger: 3,
+                code: 4
+            }
+
+            account_1 =
+              %Account{
+                id: <<0::128>>,
+                flags: %AccountFlags{linked: true},
+                ledger: 3,
+                code: 4
+            }
+
+            account_2 =
+              %Account{
+                id: <<43::128>>,
+                flags: %AccountFlags{linked: false},
+                ledger: 3,
+                code: 4
+              }
+            ```
+
+            ---
+
+            ```elixir[|3-17]
+            {:ok, result} = Connection.create_accounts(:tb, accounts)
+
+            result
+            # => [
+            # =>   %CreateAccountsResult{
+            # =>     index: 0,
+            # =>     reason: :linked_event_failed
+            # =>   }
+            # =>   %CreateAccountsResult{
+            # =>     index: 1,
+            # =>     reason: :id_must_not_be_zero
+            # =>   }
+            # =>   %CreateAccountsResult{
+            # =>     index: 2,
+            # =>     reason: :linked_event_failed
+            # =>   }
+            # => ]
+            ```
+
+            ---
+
+            ### Two-Phase Transfers
+
+            ---
+
+            ### Reserve funds
+
+            ```elixir[|8|9]
+            pending_transfer = %Transfer{
+              id: <<42::128>>,
+              credit_account_id: credit_account_id,
+              debit_account_id: debit_account_id,
+              ledger: 1,
+              code: 1,
+              amount: 100,
+              flags: %TransferFlags{pending: true},
+              timeout: 30
+            }
+
+            Connection.create_transfers(conn, [pending_transfer])
+            # => {:ok, []}
+            ```
+
+            ---
+
+            ### Resolve funds (Post-Pending Transfer)
+
+            ```elixir[|4,5|3]
+            post_pending_transfer = %Transfer{
+              id: <<43::128>>,
+              amount: 100,
+              pending_id: <<42::128>>
+              flags: %TransferFlags{post_pending_transfer: true},
+            }
+
+            Connection.create_transfers(conn, [post_pending_transfer])
+            # => {:ok, []}
+            ```
+
+            notes:
+            - We can omit credit/debit account ids, ledger and code
+            - Note that we still have to pass amount
+
+            ---
+
+            ### Resolve funds - Void
+
+            ```elixir[|3-4]
+            void_pending_transfer = %Transfer{
+              id: <<43::128>>,
+              pending_id: <<42::128>>
+              flags: %TransferFlags{void_pending_transfer: true},
+            }
+
+            Connection.create_transfers(conn, [void_pending_transfer])
+            # => {:ok, []}
+            ```
+
+            ---
+
+            ### Resolve funds - Expire
+            Automatically expires after 30 seconds
+
+            ---
+
+            ### TigerBeetle recipes
+
+            - Currency exchange
+            - Multi-debit/Multi-credit transfers
+            - Balance-conditional transfers
+
+            notes:
+            - Balance-conditional:
+              - For example you can ensure balance stays between certain bounds
+              without reading it first, just by doing some transfer-combos
+              with some control accounts
+
+            ---
+
+            ## ⚠️ Caveats ⚠️
+
+            notes:
+            - Here are some things that might be different from your usual DB
+
+            ---
+
+            ### The app or browser should generate the ID
+
+            notes:
+            1. User initiates a transfer.
+            2. Client software (app, web page, etc) generates the transfer id.
+            3. Client software persists the id in the app or browser local storage.
+            4. Client software submits the transfer to your API service.
+            5. API service includes the transfer in a request.
+            6. TigerBeetle creates the transfer with the given id once and only once.
+            7. TigerBeetle responds to the API service.
+            8. The API service responds to the client software.
+
+            ---
+
+            ### Timestamps are created by the server
+
+            notes:
+            - Two events can't have the same timestamp
+            - Everthing is strictly serializable
+
+            ---
+
+            ### Requests are retried forever
+
+            notes:
+            Not a problem if you are just waiting for a message
+
+            This client behaviour guarantees durability – the request will eventually get through if the cluster recovers
+
+            A client session will automatically retry a request until either:
+            - the client receives a corresponding reply from the cluster, or
+            - the client is terminated.
+
+            So
+
+            - the TigerBeetle client will never time out
+            - the TigerBeetle client has no retry limits
+            - the TigerBeetle client does not surface network errors
+
+            With TigerBeetle’s strict consistency model, surfacing these errors at the client/application level would be misleading.
+
+            ---
+
+            # Under the hood
+
+            ---
+
+            ![TigerBeetlex.Client architecture](images/architecture_message.svg)
+
+            ---
+
+            ### NIF communicates with Elixir via messages
+
+            ---
+
+            ```zig[]
+            fn on_completion(context: *RequestContext, ...) {
+              // ...
+              const tag = beam.make_atom(env, "tigerbeetlex_response");
+              const msg = beam.make_tuple(env, .{ tag, ref, response });
+
+              beam.send(caller_pid, env, msg) catch {};
+            }
+            ```
+
+            notes:
+            - NIFs are not only sync chunks of C code
+            - If they have their own async mechanism, they can send messages too
+            - They can't receive them though (you need a CNode for that)
+
+            ---
+
+            ![TigerBeetlex.Connection architecture](images/architecture_connection.svg)
+
+            ---
+
+            ## Zig superpowers
+
+            ---
+
+            ### Allocations show up in `:erlang.memory()`
+
+            notes:
+            - Derived from `enif_alloc` erl_nif.h, but Zig makes it easy to integrate everywhere
+
+            ---
+
+            ### Code generation using Zig `comptime`
+
+            notes:
+            - All code in the `bindings` folder is generated by `tools/elixir_bindings.zig`
+            - This is a neat Zig feature.
+            - We define the data structures once (in TigerBeetle's core Zig code) and use compile-time reflection to automatically generate the correct Elixir binary matching patterns.
+            -This reduces boilerplate and prevents errors if the core structures change.
+
+            ---
+
+            ```zig[]
+            pub const Account = extern struct {
+                id: u128,
+                debits_pending: u128,
+                debits_posted: u128,
+                credits_pending: u128,
+                credits_posted: u128,
+                user_data_128: u128,
+                user_data_64: u64,
+                user_data_32: u32,
+                reserved: u32,
+                ledger: u32,
+                code: u16,
+                flags: AccountFlags,
+                timestamp: u64,
+            }
+            ```
+
+            ---
+
+            ```zig[]
+            const type_info = @typeInfo(Account);
+
+            inline for (type_info.fields) |field| {
+              // use field.name and field.type
+            }
+            ```
+
+            notes:
+            - Of course you can call @typeInfo on field.type
+              - This gives info on the int sign, size etc
+
+            ---
+
+            ```elixir[]
+            typedstruct do
+              field :id, <<_::128>>, default: <<0::size(128)>>
+              field :debits_pending, non_neg_integer(), default: 0
+              field :debits_posted, non_neg_integer(), default: 0
+              field :credits_pending, non_neg_integer(), default: 0
+              field :credits_posted, non_neg_integer(), default: 0
+              field :user_data_128, <<_::128>>, default: <<0::size(128)>>
+              field :user_data_64, non_neg_integer(), default: 0
+              field :user_data_32, non_neg_integer(), default: 0
+              field :ledger, non_neg_integer(), default: 0
+              field :code, non_neg_integer(), default: 0
+              field :flags, AccountFlags.t(), default: %AccountFlags{}
+              field :timestamp, non_neg_integer(), default: 0
+            end
+            ```
+
+            ---
+
+            ```elixir[]
+            <<
+              id::binary-size(16),
+              debits_pending::unsigned-little-128,
+              debits_posted::unsigned-little-128,
+              credits_pending::unsigned-little-128,
+              credits_posted::unsigned-little-128,
+              user_data_128::binary-size(16),
+              user_data_64::unsigned-little-64,
+              user_data_32::unsigned-little-32,
+              _reserved::unsigned-little-32,
+              ledger::unsigned-little-32,
+              code::unsigned-little-16,
+              flags::binary-size(2),
+              timestamp::unsigned-little-64
+            >> = bin
+            ```
+
+            ---
+
+            #### `zig build bindings`
+
+            ---
+
+            # 💡 Ideas for the future
+
+            ---
+
+            ### User-defined structs
+
+            ---
+
+            ```elixir[]
+            defmodule MyApp.Account do
+              use TigerBeetlex.Account.Schema,
+                user_data_128: :account_uuid,
+                user_data_64: :some_other_stuff,
+                # Map ledger/codes to atom values...
+            end
+            ```
+
+            ---
+
+            ### Ash data layer
+            #### Possibly integrated with Ash Double Entry
+
+            ---
+
+            ### CDC handling
+
+            ---
+
+            ![CDC pull request](images/cdc.png)
+
+            ---
+
+            ### Upstreaming? 👀
+
+            ---
+
+            ## Questions?
+
+            ---
+
+            # Thanks!
+
+            - [github.com/rbino/tigerbeetlex](https://github.com/rbino/tigerbeetlex)
+            - [docs.tigerbeetle.com](https://docs.tigerbeetle.com)
+            - [rbino.com/about](https://rbino.com/about)
+
+            ---
+
+            # Extras
+
+            ---
+
+            ### `build_dot_zig`
+
+            notes:
+            - Use `build.zig` instead of a `Makefile`
+            - TigerBeetle is pulled by the Zig package manager
+
+            ---
+
+            ## Operating
+
+            ---
+
+            ```bash
+            $ curl -Lo tigerbeetle.zip https://linux.tigerbeetle.com
+
+            $ unzip tigerbeetle.zip
+
+            $ ./tigerbeetle format --cluster=0 --replica=0 \
+                --replica-count=1 0_0.tigerbeetle
+
+            $ ./tigerbeetle start --addresses=3000 0_0.tigerbeetle
+            ```
+
+            notes:
+            Automatic updates, just replace the binary
+          </script>
+        </section>
+      </div>
+    </div>
+
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script>
+      // More info about initialization & config:
+      // - https://revealjs.com/initialization/
+      // - https://revealjs.com/config/
+      Reveal.initialize({
+        hash: true,
+        slideNumber: 'c/t',
+        showSlideNumber: 'speaker',
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+      });
+    </script>
+  </body>
+</html>

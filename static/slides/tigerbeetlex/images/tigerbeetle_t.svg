@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="183.4351mm"
+   height="153.55388mm"
+   viewBox="0 0 183.4351 153.55388"
+   version="1.1"
+   id="svg7292"
+   sodipodi:docname="tigerbeetle_t.svg"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview45"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:pageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:zoom="0.37253765"
+     inkscape:cx="1215.9845"
+     inkscape:cy="-434.85538"
+     inkscape:window-width="2156"
+     inkscape:window-height="3836"
+     inkscape:window-x="3840"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg7292"
+     inkscape:showpageshadow="2"
+     inkscape:deskcolor="#d1d1d1" />
+  <defs
+     id="defs7289">
+    <clipPath
+       id="clip11">
+      <rect
+         x="0"
+         y="0"
+         width="373"
+         height="43"
+         id="rect1759" />
+    </clipPath>
+    <clipPath
+       id="clip12">
+      <path
+         d="M 0,13.5 H 18 V 19 H 0 Z m 0,0"
+         id="path1756" />
+    </clipPath>
+    <mask
+       id="mask5">
+      <g
+         id="g1753"
+         style="filter:url(#alpha)">
+        <rect
+           x="0"
+           y="0"
+           width="612"
+           height="792"
+           style="fill:#000000;fill-opacity:0.898;stroke:none"
+           id="rect1751" />
+      </g>
+    </mask>
+    <filter
+       id="alpha"
+       filterUnits="objectBoundingBox"
+       x="0"
+       y="0"
+       width="1"
+       height="1">
+      <feColorMatrix
+         type="matrix"
+         in="SourceGraphic"
+         values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"
+         id="feColorMatrix1702" />
+    </filter>
+    <clipPath
+       id="clipPath7313">
+      <rect
+         x="0"
+         y="0"
+         width="373"
+         height="43"
+         id="rect7311" />
+    </clipPath>
+    <clipPath
+       id="clipPath7317">
+      <path
+         d="M 0,13.5 H 18 V 19 H 0 Z m 0,0"
+         id="path7315" />
+    </clipPath>
+  </defs>
+  <g
+     id="layer1"
+     transform="matrix(15.916745,0,0,15.916745,-1125.3511,-3026.5234)">
+    <g
+       id="use2768"
+       clip-path="url(#clip11)"
+       style="fill:#1a1a1a;fill-opacity:1;stroke:none;stroke-width:0.780934;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.64025899,0,0,0.64025899,70.702336,181.26354)">
+      <g
+         clip-path="url(#clip12)"
+         id="g7477"
+         style="clip-rule:nonzero;fill:#1a1a1a">
+        <path
+           style="fill:#1a1a1a;fill-opacity:1;fill-rule:nonzero;stroke:none"
+           d="M 13.542969,18.117188 H 0 C 0,15.796875 2.058594,13.875 4.457031,13.875 H 18 c 0,2.320312 -2.058594,4.242188 -4.457031,4.242188 z m 0,0"
+           id="path7475" />
+      </g>
+      <path
+         style="fill:#1a1a1a;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         d="M 5.257812,28.863281 6.175781,22.566406 C 6.566406,19.894531 8.867188,17.90625 11.570312,17.90625 l -1.238281,8.179688 C 9.910156,28.007812 7.695312,29.28125 5.257812,28.863281 Z m 0,0"
+         id="path7479" />
+    </g>
+  </g>
+</svg>
