@@ -374,6 +374,7 @@
             Creating the client
 
             ```elixir[]
+            alias TigerBeetlex.Client
 
             cluster_id = <<0::128>>
             addresses = ["127.0.0.1:3000"]
@@ -824,6 +825,14 @@
 
             ---
 
+            ## `build_dot_zig`
+
+            notes:
+            - Use `build.zig` instead of a `Makefile`
+            - TigerBeetle is pulled by the Zig package manager
+
+            ---
+
             # 💡 Ideas for the future
 
             ---
@@ -873,14 +882,6 @@
             ---
 
             # Extras
-
-            ---
-
-            ### `build_dot_zig`
-
-            notes:
-            - Use `build.zig` instead of a `Makefile`
-            - TigerBeetle is pulled by the Zig package manager
 
             ---
 
