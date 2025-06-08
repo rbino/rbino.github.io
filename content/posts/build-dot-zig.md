@@ -47,7 +47,7 @@ A recent addition is the C NIF Mix generator, which is very handy to bootstrap a
 
 You just run
 
-```console
+```bash
 mix build_dot_zig.gen.c_nif Math math sum/2 multiply/2
 ```
 
