@@ -11,7 +11,7 @@ pygmentsOptions = "linenos=inline"
 
 [params]
   mode = "auto"
-  useCDN = false
+  useCDN = true
   subtitle = "Happily shaving yaks"
   mathjax = false
   katex = false
