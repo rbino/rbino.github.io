@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>Beyond your first NIF</title>
+
+    <link rel="stylesheet" href="dist/reset.css">
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/beige.css">
+
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="//unpkg.com/@catppuccin/highlightjs@1.0.1/css/catppuccin-latte.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section data-markdown data-transition="none" >
+          <textarea data-template>
+
+            # Beyond your first NIF
+
+            ---
+
+            Quick recap: what is a NIF?
+
+            ---
+
+            A function written in a native language</br>that gets dynamically linked into the BEAM
+
+            ---
+
+            ### Why should I use a NIF?
+
+            - Raw speed
+            - Reuse existing libraries
+            - Low level system access
+
+            ---
+
+            ### Your first NIF
+
+            ```c[]
+            static ERL_NIF_TERM sum(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+              int a, b;
+
+              if (!enif_get_int(env, argv[0], &a) ||
+                  !enif_get_int(env, argv[1], &b)) {
+                return enif_make_badarg(env);
+              }
+
+              return enif_make_int(env, a + b);
+            }
+            ```
+
+            ---
+
+            ### What we're going to cover
+
+            - Data exchange between NIFs and the BEAM
+            - Write NIFs that don't block the scheduler
+            - NIF resources
+            - Debugging faulty NIFs
+            - Language choices
+
+            ---
+
+            ### Code is available on Github
+
+            ---
+
+            ## `whoami`
+
+            - Riccardo Binetti (rbino)
+            - Senior Backend Developer @ Remote
+            - Using Elixir as main language since 2017
+
+            ---
+
+            ## Basic data exchange
+
+            ---
+
+            Data going in and out of NIFs has type</br>`ERL_NIF_TERM`
+
+            ---
+
+            ### Extracting terms
+
+            `enif_get_*(env, term, ...)`
+
+            `enif_inspect_*(env, term, ...)`
+
+            ---
+
+            ```c[]
+            int foo;
+            if (!enif_get_int(env, int_term, &foo)) {
+               // Handle error
+            }
+            // Use foo
+            ```
+
+            ---
+
+            ### Identifying terms
+
+            `enif_term_type(env, term)`
+
+            `enif_is_*(env, term)`
+
+            ---
+
+            ```c[]
+            switch (enif_term_type(env, term)) {
+              case ERL_NIF_TERM_TYPE_INTEGER:
+                // ...
+                break;
+
+              case ERL_NIF_TERM_TYPE_FLOAT:
+                // ...
+                break;
+            }
+            ```
+
+            ---
+
+            ### Creating terms
+
+            `enif_make_*(env, ...)`
+
+            ---
+
+            ```c[]
+            ERL_NIF_TERM tag = enif_make_atom(env, "answer");
+            ERL_NIF_TERM value = enif_make_int(env, 42);
+            return enif_make_tuple2(env, tag, value);
+            ```
+
+            ---
+
+            Iterate through a list
+
+            ```c[]
+            ERL_NIF_TERM list = list_term;
+            ERL_NIF_TERM head, tail;
+            while (enif_get_list_cell(env, list, &head, &tail)) {
+              do_something_with(head);
+              list = tail;
+            }
+            ```
+
+            ---
+
+            Build an Elixir struct
+
+            ```c[|1-10|5,8|12-17]
+            const int num_keys = 3;
+            ERL_NIF_TERM keys[num_keys];
+            ERL_NIF_TERM values[num_keys];
+
+            keys[0] = enif_make_atom(env, "__struct__");
+            keys[1] = enif_make_atom(env, "foo");
+            keys[2] = enif_make_atom(env, "bar");
+            values[0] = enif_make_atom(env, "Elixir.NifPlayground.MyStruct");
+            values[1] = enif_make_atom(env, "hello");
+            values[2] = enif_make_int(env, 42);
+
+            ERL_NIF_TERM map;
+            if (!enif_make_map_from_arrays(env, keys, values, num_keys, &map)) {
+              return enif_make_badarg(env);
+            }
+
+            return map;
+            ```
+
+            Note:
+            Now, in all these functions we passed around this env (next slide)
+
+            ---
+
+            ## `env`
+
+            ---
+
+            All terms of type `ERL_NIF_TERM`</br>belong to an environment of type `ErlNifEnv`
+
+            ---
+
+            The lifetime of a term is controlled</br>by the one of its environment object
+
+            ---
+
+            <!-- .slide: data-auto-animate -->
+
+            ### 3 types of environment
+            - Process bound environment
+            - Callback environment
+            - Process independent environment
+
+            Note:
+            (at the end) but the important distinction is how their lifetime is handled
+
+            ---
+
+            <!-- .slide: data-auto-animate -->
+
+            ### Function scope lifetime
+            - Process bound environment
+            - Callback environment
+            ### Manually managed lifetime
+            - Process independent environment
+
+            Note:
+            This is very important when you want to persist a term that belongs
+            to a process bound or callback environment outside its function scope
+
+            ---
+
+            ### Don't
+            ```c[|3|4|5|6]
+            static ERL_NIF_TERM some_nif(ErlNifEnv* env, ...) {
+              // ...
+              ERL_NIF_TERM ref = enif_make_ref(env);
+              long_term_storage.my_ref = ref;
+              return ref;
+            } // <- NIF returns, long_term_storage.my_ref is invalid
+            ```
+
+            ---
+
+            ### Do
+            ```c[|3|4,5|6,7|8|9]
+            static ERL_NIF_TERM some_nif(ErlNifEnv* env, ...) {
+              // ...
+              ERL_NIF_TERM ref = enif_make_ref(env);
+              ErlNifEnv *my_env = enif_alloc_env();
+              ERL_NIF_TERM my_ref = enif_make_copy(my_env, ref);
+              long_term_storage.env = my_env;
+              long_term_storage.my_ref = my_ref;
+              return ref;
+            } // <- long_term_storage.my_ref is valid in long_term_storage.env
+            ```
+
+            ---
+
+            ⚠️
+
+            `enif_inspect_binary(env, term, &bin)`
+
+            `enif_inspect_iolist_as_binary(env, term, &bin)`
+
+            Note:
+            Binaries extracted with enif_inspect... have their lifetime tied to the
+            environment too (that's why you don't need to free any memory)
+
+            ---
+
+            Please consider the environment before</br>
+            ~printing this email~ persisting your term
+
+            ---
+
+            ## NIF Scheduling
+
+            ---
+
+            ![Schedulers diagram](images/schedulers.png) <!-- .element width="70%" -->
+
+            ---
+
+            ### One timeslice ~= 1ms
+
+            ---
+
+            **Erlang processes**: preemptive scheduling
+
+            **NIFs**: cooperative scheduling
+
+            ---
+
+            ```c[]
+            static ERL_NIF_TERM bad_sleep(...) {
+              int amount_ms;
+              if (!enif_get_int(env, argv[0], &amount_ms)) {
+                return enif_make_badarg(env);
+              }
+              usleep(amount_ms * 1000);
+              return enif_make_atom(env, "ok");
+            }
+            ```
+
+            ---
+
+            `iex --erl "+S 1" -S mix`
+
+            or
+
+            `:erlang.system_flag(:schedulers_online, 1)`
+
+            Note:
+            Demo time
+
+            ---
+
+            How do we make our NIF a good BEAM citizen?
+
+            ---
+
+            ### 1. Dirty NIFs
+
+            ---
+
+            Use dedicated schedulers to avoid disruption
+
+            ---
+
+            ![Dirty schedulers diagram =70%](images/dirty_schedulers.png) <!-- .element width="70%" -->
+
+            ---
+
+            ### Dirty CPU vs Dirty IO
+
+            Note:
+            - Dirty CPU schedulers depend on the number of CPUs (default # logical processors)
+            - Dirty IO schedulers are independent (default 10)
+
+            ---
+
+            - **CPU bound**: fans go *BRRR*
+            - **IO bound**: passively waiting for someone else (network, disk, ...)
+            - You can dynamically switch between the two
+
+            ---
+
+            ```c[]
+            static ErlNifFunc nif_funcs[] = {
+              {"bad_sleep", 1, bad_sleep},
+            };
+            ```
+
+            ---
+
+            ```c[]
+            static ErlNifFunc nif_funcs[] = {
+              {"bad_sleep_dirty", 1, bad_sleep, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+            };
+            ```
+
+            ---
+
+            ### 2. Yielding NIFs
+
+            ---
+
+            Split work in small chunks
+
+            ---
+
+            ```c[|2|7|8|9-12|13-14|11]
+            static ERL_NIF_TERM better_sleep(...) {
+              int remaining_ms;
+              if (!enif_get_int(env, argv[0], &remaining_ms)) {
+                return enif_make_badarg(env);
+              }
+
+              if (remaining_ms-- > 0) {
+                usleep(1000);
+                ERL_NIF_TERM remaining_ms_term = enif_make_int(env, remaining_ms);
+                ERL_NIF_TERM argv[] = {remaining_ms_term};
+                int flags = 0;
+                return enif_schedule_nif(env, "better_sleep", flags, better_sleep, 1, argv);
+              } else {
+                return enif_make_atom(env, "ok");
+              }
+            }
+            ```
+
+            Note:
+            - Show that we can yield _to_ a dirty NIF
+
+            ---
+
+            ```c[11|10]
+            static ERL_NIF_TERM better_sleep(...) {
+              int remaining_ms;
+              if (!enif_get_int(env, argv[0], &remaining_ms)) {
+                return enif_make_badarg(env);
+              }
+
+              if (remaining_ms-- > 0) {
+                usleep(1000);
+                ERL_NIF_TERM remaining_ms_term = enif_make_int(env, remaining_ms);
+                ERL_NIF_TERM argv[] = {remaining_ms_term};
+                int flags = ERL_NIF_DIRTY_JOB_CPU_BOUND;
+                return enif_schedule_nif(env, "better_sleep", flags, better_sleep, 1, argv);
+              } else {
+                return enif_make_atom(env, "ok");
+              }
+            }
+            ```
+
+            Note:
+            - The other hard thing is serializing all your state to resume the execution
+
+            ---
+
+            `enif_consume_timeslice(env, percent);`
+
+            Note:
+            - Guesstimate how much of the timeslice we consumed
+            - Percent is relative (i.e. not monotonically increasing)
+            - Returns 1 if the timeslice is exhausted
+
+            ---
+
+            The BEAM trusts you to estimate progress correctly
+
+            ---
+
+            ### 3. Threaded NIFs
+
+            ---
+
+            Run your code in a dedicated thread and send a message
+
+            ---
+
+            ```c[|8-11|13|15-16|18-24|26-28|30]
+            static ERL_NIF_TERM threaded_sleep(ErlNifEnv *env, int argc,
+                                               const ERL_NIF_TERM argv[]) {
+              int amount_ms;
+              if (!enif_get_int(env, argv[0], &amount_ms)) {
+                return enif_make_badarg(env);
+              }
+
+              ErlNifPid self;
+              if (!enif_self(env, &self)) {
+                return enif_make_badarg(env);
+              }
+
+              ERL_NIF_TERM ref = enif_make_ref(env);
+
+              ErlNifEnv *thread_env = enif_alloc_env();
+              ERL_NIF_TERM thread_ref = enif_make_copy(thread_env, ref);
+
+              threaded_sleep_data_t *data = enif_alloc(sizeof(threaded_sleep_data_t));
+              *data = (threaded_sleep_data_t){
+                  .env = thread_env,
+                  .caller_pid = self,
+                  .ref = thread_ref,
+                  .amount_ms = amount_ms,
+              };
+
+              ErlNifTid tid;
+              enif_thread_create("threaded_sleep", &tid, threaded_sleep_impl, data, NULL);
+              // TODO: use tid to join the thread in the unload callback
+
+              return ref;
+            }
+            ```
+
+            ---
+
+            ```[|5-7|8]
+            static void *threaded_sleep_impl(void *args) {
+              threaded_sleep_data_t *data = (threaded_sleep_data_t *)args;
+              usleep(data->amount_ms * 1000);
+
+              ERL_NIF_TERM result = enif_make_atom(data->env, "slept");
+              ERL_NIF_TERM msg = enif_make_tuple2(data->env, data->ref, result);
+              enif_send(NULL, &data->caller_pid, data->env, msg);
+              enif_free(data);
+
+              return NULL;
+            }
+            ```
+
+            ---
+
+            ## Resources
+
+            ---
+
+            Resources allow keeping long lived data across NIF calls
+
+            ---
+
+            Resources are independently reference counted</br>
+            on both sides (NIF and Erlang)
+
+            ---
+
+            - Refcount starts from 1 on the NIF side
+            - `enif_keep_resource(res)`: increase refcount
+            - `enif_release_resource(res)`: decrease refcount
+
+            ---
+
+            A resource is destroyed when both the Erlang</br>
+            and the NIF refcounts are 0
+
+            ---
+
+            Our resource
+            ```c[]
+            typedef struct {
+              int count;
+            } counter_t;
+            ```
+
+            ---
+
+            Our API
+            ```elixir
+            new_counter()
+            increment_counter(counter)
+            get_counter_value(counter)
+            ```
+
+            ---
+
+            ```c[]
+            ERL_NIF_INIT(Elixir.NifPlayground, nif_funcs, NULL, NULL, NULL, NULL)
+            ```
+
+            Note:
+            First of all, we have to initialize the resource type
+            We're going to do this in the load callback, which is one of the 3 callbacks
+            you can execute during the lifecycle of your NIF
+
+            ---
+
+            ```c[]
+            ERL_NIF_INIT(Elixir.NifPlayground, nif_funcs, load, NULL, upgrade, unload)
+            ```
+
+            ---
+
+            ```c[|1|3-12|6-7]
+            static ErlNifResourceType* COUNTER_RESOURCE_TYPE;
+
+            static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info) {
+              ErlNifResourceFlags flags = ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER;
+
+              COUNTER_RESOURCE_TYPE =
+                enif_open_resource_type(env, NULL, "Counter", counter_destructor, flags, NULL);
+
+              if (COUNTER_RESOURCE_TYPE == NULL) return -1;
+
+              return 0;
+            }
+            ```
+
+            Note:
+            Resources are represented as references in the Elixir side, but each of them
+            is and instance of a specific resource type.
+            Each type has to be initialized in the load callback. The type will need to
+            be accessible when creating and "extracting" the resource term.
+
+            ---
+
+            ```c[]
+            void counter_destructor(ErlNifEnv* env, void* obj)
+            {
+              // Since we only allocated 'Counter' with enif_alloc_resource,
+              // the VM handles freeing its memory.
+              // If our struct contained other dynamically allocated memory
+              // (e.g., from enif_alloc), we would free it here.
+            }
+            ```
+
+            ---
+
+            ```c[|3-4|10|11|13]
+            static ERL_NIF_TERM new_counter(...)
+            {
+              counter_t *counter =
+                enif_alloc_resource(COUNTER_RESOURCE_TYPE, sizeof(counter_t));
+
+              if (counter == NULL) {
+                return enif_raise_exception(env, enif_make_atom(env, "out_of_memory"));
+              }
+
+              counter->count = 0;
+              enif_release_resource(counter);
+
+              return enif_make_resource(env, counter);
+            }
+            ```
+
+            ---
+
+            ```c[|3-6|8|10]
+            static ERL_NIF_TERM increment_counter(...)
+            {
+              counter_t *counter;
+              if (!enif_get_resource(env, argv[0], COUNTER_RESOURCE_TYPE, &counter)) {
+                return enif_make_badarg(env);
+              }
+
+              counter->count++;
+
+              return enif_make_atom(env, "ok");
+            }
+            ```
+
+            ---
+
+            ```c[|3-6|8|10]
+            static ERL_NIF_TERM get_counter_value(...)
+            {
+              counter_t *counter;
+              if (!enif_get_resource(env, argv[0], COUNTER_RESOURCE_TYPE, &counter)) {
+                return enif_make_badarg(env);
+              }
+
+              int current_value = counter->count;
+
+              return enif_make_int(env, current_value);
+            }
+            ```
+
+            ---
+
+            # 🎉
+
+            ---
+
+            # ❌
+
+            Note:
+            - Show demo of failing increment
+
+            ---
+
+            # 💀
+            `counter->count++;`
+
+            Note:
+            - You are not in the cozy Erlang concurrency model anymore
+
+            ---
+
+            ### Say hello to race conditions
+
+            ---
+
+            - Use atomics
+            - `enif_mutex_*`
+            - `enif_rwlock_*`
+            - `enif_cond_*`
+
+            ---
+
+            ## When things go wrong
+
+            Note:
+            Unfortunately debugging segfaults is not something I can teach
+            in 5 minutes so this is the part of the talk where I show you some
+            circles and tell you to draw the rest of the owl
+
+            ---
+
+            ![How to draw an owl](images/owl.jpg)
+
+            ---
+
+            ### The tools
+            - Debug emulator
+            - Address sanitizer (ASAN)
+            - Valgrind
+            - `rr`
+
+            ---
+
+            Installing debug emulators
+            ```bash[]
+            export KERL_RELEASE_TARGET="debug asan"
+            export MISE_ERLANG_COMPILE=true # only needed for mise
+            mise use erlang@28.1
+            # or asdf install erlang 28.1
+            ```
+
+            ---
+
+            Generating a core dump
+            ```bash[]
+            # Compile your code with debug symbols (-g)
+            ulimit -c unlimited
+            iex --erl "-emu_type debug" -S mix
+            ```
+
+            ---
+
+            # 💥
+
+            ---
+
+            Debugging a core dump
+            ```bash[]
+            # Be sure to use the same OTP tag you are using
+            export ERL_TOP=/path/to/otp
+            cerl -debug -rcore core.1234
+            ```
+
+            ---
+
+            Protip: `etp`
+            ```bash[]
+            (gdb) etp my_tuple
+            {1, 2, 3}.
+            ```
+
+            ---
+
+            Debugging memory problems
+            ```bash[]
+            # Compile your code with:
+            #   -fsanitize=address -fno-common -fno-omit-frame-pointer
+            export ASAN_LOG_DIR=/my/asan/log/dir
+            export ASAN_OPTIONS="halt_on_error=true"
+            iex --erl "-emu_type asan" -S mix
+            ```
+
+            ---
+
+            ![Segfault](images/segfault.png) <!-- .element width="70%" -->
+
+            ---
+
+            ## Choose your poison
+
+            Note:
+            The Elixir ecosystem offers some libraries that allow you to use
+            some languages other than C to write your NIFs, usually cutting some
+            boilerplate in the process
+
+            ---
+
+            ### C++: `fine`
+
+            Note:
+            - Reduces NIF boilerplate
+            - You still have to write a Makefile
+
+            ---
+
+            ```c++[]
+            #include <fine.hpp>
+
+            int64_t add(ErlNifEnv *env, int64_t x, int64_t y) {
+              return x + y;
+            }
+
+            FINE_NIF(add, 0);
+
+            FINE_INIT("Elixir.MyProject.Math");
+            ```
+
+            ---
+
+            ```elixir[]
+            defmodule MyProject.Math do
+              @on_load :__on_load__
+
+              def __on_load__ do
+                path = :filename.join(:code.priv_dir(:example), ~c"libexample")
+
+                case :erlang.load_nif(path, 0) do
+                  :ok -> :ok
+                  {:error, reason} -> raise "failed to load NIF: #{inspect(reason)}"
+                end
+              end
+
+              def add(_, _), do: :erlang.nif_error(:nif_not_loaded)
+            end
+
+            ---
+
+            ### Rust: `rustler`
+
+            Note:
+            - Automatic integration, no need for Makefiles
+            - Safety!!1!
+            - Still need to write dummy
+
+            ---
+
+            ```rust[]
+            #[rustler::nif]
+            fn add(a: i64, b: i64) -> i64 {
+              a + b
+            }
+
+            rustler::init!("Elixir.MyProject.Math");
+            ```
+
+            ---
+
+            ```elixir[]
+            defmodule MyProject.Math do
+            use Rustler, otp_app: :my_app
+
+            def add(_, _), do: :erlang.nif_error(:nif_not_loaded)
+            ```
+
+            ---
+
+            ### Zig: `zigler`
+
+
+            Note:
+            - Code can be written directly in Elixir modules
+            - Magic ~Z
+            - Allocator integration with the BEAM
+
+            ---
+
+            ```elixir[]
+            defmodule MyProject.Math do
+              use Zig, otp_app: :my_app
+
+              ~Z"""
+              pub fn add(a: i64, b: i64) i64 {
+                return a + b;
+              }
+              """
+            end
+            ```
+
+            Note:
+            So in the end, this is exactly like macros.
+
+            ---
+
+            Rule #1: don't write NIFs
+
+            ---
+
+            Rule #2: go break Rule #1
+
+            ---
+
+            # Thank you!
+
+            [github.com/rbino/nif_playground](https://github.com/rbino/nif_playground)
+
+            [rbino.com/about](https://rbino.com/about)
+
+            ![QR Code for Feedback](images/feedback-qr.png) <!-- .element width="20%" -->
+
+          </textarea>
+        </section>
+      </div>
+    </div>
+
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script>
+      // More info about initialization & config:
+      // - https://revealjs.com/initialization/
+      // - https://revealjs.com/config/
+      Reveal.initialize({
+        width: 1280,
+        hash: true,
+        slideNumber: 'c/t',
+        showSlideNumber: 'speaker',
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+      });
+    </script>
+  </body>
+</html>
