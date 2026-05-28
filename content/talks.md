@@ -8,7 +8,7 @@ draft: false
 Here's a collection of talks I've given at conferences, meetups etc.
 
 - [TigerBeetlex for Zig developers](https://luma.com/fbt5g0kx?tk=BpsjQZ) (video not available)
-- [Beyond your first NIF](https://codebeameurope.com/talks/beyond-your-first-nif/) (video not available yet)
+- [Beyond your first NIF](https://www.youtube.com/watch?v=1uKTclEF5oQ)
 - [TigerBeetlex: an Elixir and Zig love story](https://www.youtube.com/watch?v=iF97whmfCLg)
 - [Craft your query DSL with NimbleParsec and Ecto](https://www.youtube.com/watch?v=T4komUAGMp8)
 - [Distributed Zig with Elixir and Zigler](https://www.youtube.com/watch?v=l75KLCJaGxw)
