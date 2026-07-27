@@ -1,23 +1,36 @@
 {
+  "subject": "acct:rbino@hachyderm.io",
   "aliases": [
-    "https://patavium.social/@rbino",
-    "https://patavium.social/users/rbino"
+    "https://hachyderm.io/@rbino",
+    "https://hachyderm.io/users/rbino"
   ],
   "links": [
     {
-      "href": "https://patavium.social/@rbino",
       "rel": "http://webfinger.net/rel/profile-page",
-      "type": "text/html"
+      "type": "text/html",
+      "href": "https://hachyderm.io/@rbino"
     },
     {
-      "href": "https://patavium.social/users/rbino",
       "rel": "self",
-      "type": "application/activity+json"
+      "type": "application/activity+json",
+      "href": "https://hachyderm.io/users/rbino"
     },
     {
       "rel": "http://ostatus.org/schema/1.0/subscribe",
-      "template": "https://patavium.social/authorize_interaction?uri={uri}"
+      "template": "https://hachyderm.io/authorize_interaction?uri={uri}"
+    },
+    {
+      "rel": "https://w3id.org/fep/3b86/Create",
+      "template": "https://hachyderm.io/share?text={content}"
+    },
+    {
+      "rel": "https://w3id.org/fep/3b86/Object",
+      "template": "https://hachyderm.io/authorize_interaction?uri={object}"
+    },
+    {
+      "rel": "http://webfinger.net/rel/avatar",
+      "type": "image/png",
+      "href": "https://media.hachyderm.io/accounts/avatars/114/355/629/938/270/848/original/c5d60dc2b410fefe.png"
     }
-  ],
-  "subject": "acct:rbino@rbino.com"
+  ]
 }
