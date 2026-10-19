@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+		/>
+
+		<title>Don't Crash the BEAM: Safe Interop with Ports and C Nodes</title>
+
+		<link rel="stylesheet" href="dist/reset.css" />
+		<link rel="stylesheet" href="dist/reveal.css" />
+		<link rel="stylesheet" href="dist/theme/white.css" />
+		<link rel="stylesheet" href="presentation.css" />
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<!-- S01 -->
+				<section id="s01" data-cue="S01">
+					<h1>Don't Crash<br />the BEAM</h1>
+					<p class="subtitle">Safe interop with Ports and C Nodes</p>
+					<p class="byline">Riccardo Binetti &middot; @rbino</p>
+					<aside class="notes">
+						<p><strong>00:00-00:40</strong></p>
+						<ul>
+							<li>Last year: safer NIFs. Today: fewer surprises at the native boundary.</li>
+							<li>Goal: choose where the crash happens.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S02 -->
+				<section id="s02" data-cue="S02">
+					<h2>Dirty does not mean isolated</h2>
+					<div class="process beam wide">
+						<span class="label">BEAM OS process</span>
+						<div class="row">
+							<div class="component">Elixir</div>
+							<div class="component native danger">NIF</div>
+							<div class="component">dirty scheduler</div>
+						</div>
+					</div>
+					<p class="callout danger-text">One address space. One crash boundary.</p>
+					<aside class="notes">
+						<p><strong>00:40-01:30</strong></p>
+						<ul>
+							<li>NIF, dirty scheduler, and native thread still share the BEAM OS process.</li>
+							<li>Dirty scheduling protects scheduler responsiveness, not the address space.</li>
+							<li>A supervisor cannot restart a VM that vanished.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S03 -->
+				<section id="s03" data-cue="S03">
+					<h2>Move the boundary</h2>
+					<div class="boundary-diagram">
+						<div class="process beam">
+							<span class="label">BEAM OS process</span>
+							<div class="component">Elixir</div>
+						</div>
+						<div class="connection">protocol</div>
+						<div class="process native-process">
+							<span class="label">native OS process</span>
+							<div class="component native danger">C</div>
+						</div>
+					</div>
+					<p class="callout">A native crash becomes an observable failure.</p>
+					<aside class="notes">
+						<p><strong>01:30-02:15</strong></p>
+						<ul>
+							<li>Move C outside the BEAM process boundary.</li>
+							<li>A segfault kills the worker; Elixir can observe and recover.</li>
+							<li>Isolation does not fix correctness, memory, or CPU use. It creates a communication problem.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S04A -->
+				<section id="s04a" data-cue="S04A" class="whoami-slide">
+					<h2><code>whoami</code></h2>
+					<div class="whoami-grid">
+						<div class="identity-card">
+							<strong>Riccardo Binetti</strong>
+							<span>@rbino</span>
+						</div>
+						<ul class="identity-facts">
+							<li>Elixir since 2017</li>
+							<li>Messing with native interop</li>
+							<li>Elixir on one side. Some C on the other. Sorry.</li>
+						</ul>
+					</div>
+					<aside class="notes">
+						<p><strong>02:15-02:35</strong></p>
+						<ul>
+							<li>Brief introduction: Riccardo Binetti, online as @rbino.</li>
+							<li>Elixir has been my main language since 2017.</li>
+							<li>The examples use Elixir on the BEAM side and C on the native side.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S04B -->
+				<section id="s04b" data-cue="S04B">
+					<h2>Two ways to talk</h2>
+					<div class="choice-row">
+						<div class="choice fragment">
+							<h3>Ports</h3>
+							<p>executable + pipes</p>
+						</div>
+						<div class="choice fragment">
+							<h3>C Nodes</h3>
+							<p>executable + distribution</p>
+						</div>
+					</div>
+					<p class="question fragment">Requests? Death? Overload?</p>
+					<aside class="notes">
+						<p><strong>02:35-03:00</strong></p>
+						<ul>
+							<li>Build the talk: Ports first, then C Nodes.</li>
+							<li>For both, ask how requests, death, and overload work.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S05 -->
+				<section id="s05" data-cue="S05">
+					<h2>One extremely exciting worker</h2>
+					<pre><code class="language-elixir" data-trim>checksum("123456789")
+# => 3421780262</code></pre>
+					<div class="worker-controls">
+						<span class="fragment"><strong>delay</strong><small>slow work on purpose</small></span>
+						<span class="fragment danger-text"><strong>crash</strong><small>SIGSEGV on purpose</small></span>
+					</div>
+					<aside class="notes">
+						<p><strong>03:00-03:40</strong></p>
+						<ul>
+							<li>Use the same checksum operation behind both interfaces.</li>
+							<li>CRC is deliberately trivial; Erlang already provides it.</li>
+							<li>Reveal delay and crash as demonstration controls.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S06A -->
+				<section id="s06a" data-cue="S06A">
+					<h2>What is a Port?</h2>
+					<div class="lifecycle port-definition">
+						<div class="component">connected process<br /><small>Elixir / Erlang</small></div><b>&#8596;</b>
+						<div class="component port">Port<br /><small>BEAM object</small></div><b>&#8596;</b>
+						<div class="component native">external program<br /><small>OS process</small></div>
+					</div>
+					<p class="callout">A BEAM-managed endpoint for byte-oriented communication.</p>
+					<p class="caption">Here: external Port programs, not linked-in drivers.</p>
+					<aside class="notes">
+						<p><strong>03:40-04:05</strong></p>
+						<ul>
+							<li>A Port is a BEAM object connecting one BEAM process to an external resource.</li>
+							<li>In this talk, that resource is a separate executable reached through byte streams.</li>
+							<li>The process attached to the Port is its connected process and receives Port messages.</li>
+							<li>Linked-in Port drivers are different: they run inside the VM and do not provide this crash boundary.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S06B / E01 -->
+				<section id="s06b" data-cue="S06B">
+					<h2>Open a Port</h2>
+					<pre><code class="language-elixir" data-line-numbers="1-2|3-6|5" data-trim>port =
+  Port.open({:spawn_executable, executable()}, [
+    :binary,
+    :exit_status,
+    packet: 4,
+    args: ["--port"]
+  ])</code></pre>
+					<p class="caption">The calling process becomes the Port's connected process.</p>
+					<aside class="notes">
+						<p><strong>04:05-04:35</strong></p>
+						<ul>
+							<li>Highlight <code>spawn_executable</code>, then the options.</li>
+							<li>Arguments stay separate; <code>:binary</code>, <code>:exit_status</code>, and <code>packet: 4</code> each matter.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S07 -->
+				<section id="s07" data-cue="S07">
+					<h2>A pipe is not a mailbox</h2>
+					<div class="stream">
+						<div><span>request A</span><span>request B</span></div>
+						<div class="arrow-down">&#8595;</div>
+						<div><span>part A</span><span>rest A + part B</span><span>rest B</span></div>
+					</div>
+					<div class="packet fragment">
+						<span class="header">00 00 00 03</span><span class="payload">61 62 63</span>
+					</div>
+					<p class="caption fragment">4-byte big-endian length + payload</p>
+					<aside class="notes">
+						<p><strong>04:35-05:30</strong></p>
+						<ul>
+							<li>Pipes carry byte streams, not messages.</li>
+							<li>One write can become partial reads or be combined with another write.</li>
+							<li><code>packet: 4</code> adds the length; C must fully read header and payload.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S08 / E02 -->
+				<section id="s08" data-cue="S08">
+					<h2>Framing and encoding are different jobs</h2>
+					<div class="packet large">
+						<span class="header">length</span><span class="payload">ETF payload</span>
+					</div>
+					<pre><code class="language-elixir" data-line-numbers="1|2|3" data-trim>request = {:checksum, 42, 0, "123456789"}
+packet = :erlang.term_to_binary(request)
+Port.command(port, packet)</code></pre>
+					<p class="fields">operation &middot; ID &middot; demo delay &middot; bytes</p>
+					<aside class="notes">
+						<p><strong>05:30-06:25</strong></p>
+						<ul>
+							<li>Framing finds message boundaries; ETF gives the bytes meaning.</li>
+							<li>Do not add the length in Elixir; the Port option does it.</li>
+							<li><code>Port.command</code> sends now. The result arrives later as a message.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S09 -->
+				<section id="s09" data-cue="S09">
+					<h2><code>ei</code> already helps here</h2>
+					<div class="flow">
+						<span>ETF</span><b>&#8644;</b><span><code>ei_decode_*</code><br /><code>ei_x_encode_*</code></span><b>&#8644;</b><span>C values</span>
+					</div>
+					<p class="callout">ETF does not require distribution.</p>
+					<aside class="notes">
+						<p><strong>06:25-07:15</strong></p>
+						<ul>
+							<li><code>ei</code> can decode and encode ETF without a C Node.</li>
+							<li>Validate frame size and tuple shape before doing work.</li>
+							<li>Both sides must agree on one small protocol.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S10 / E03 -->
+				<section id="s10" data-cue="S10">
+					<h2>Make it look like an Elixir call</h2>
+					<div class="code-pair">
+						<pre><code class="language-elixir" data-trim>timer = Process.send_after(
+  self(), {:deadline, id}, timeout
+)
+
+{:noreply,
+ %{state | pending: %{id: id,
+   from: from, timer: timer}}}</code></pre>
+						<pre class="fragment"><code class="language-elixir" data-trim>Process.cancel_timer(timer)
+GenServer.reply(from, result)
+
+%{state | pending: nil}</code></pre>
+					</div>
+					<p class="caption">Keep the caller. Reply when the Port answers.</p>
+					<aside class="notes">
+						<p><strong>07:15-08:15</strong></p>
+						<ul>
+							<li>First show retaining <code>from</code>; then reveal the reply path.</li>
+							<li><code>handle_call</code>: send, store ID/caller/timer, return <code>:noreply</code>.</li>
+							<li><code>handle_info</code>: match ID, cancel timer, call <code>GenServer.reply</code>.</li>
+							<li>Only one pending request; no hidden queue.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S11 -->
+				<section id="s11" data-cue="S11">
+					<h2>Your <code>printf</code> is now a protocol violation</h2>
+					<div class="stdio">
+						<div><code>stdout</code><strong>protocol</strong></div>
+						<div><code>stderr</code><strong>diagnostics</strong></div>
+					</div>
+					<p class="caption">Do not merge them.</p>
+					<aside class="notes">
+						<p><strong>08:15-09:00</strong></p>
+						<ul>
+							<li><code>stdout</code> belongs exclusively to the protocol.</li>
+							<li>A debug <code>printf</code> can corrupt packet framing.</li>
+							<li>Use <code>read</code>/<code>write</code>; send diagnostics to <code>stderr</code> and never merge it back.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S12 -->
+				<section id="s12" data-cue="S12">
+					<h2>Three things, three lifetimes</h2>
+					<div class="lifecycle">
+						<div class="component">Supervisor</div><b>&#8594;</b>
+						<div class="component">owner<br /><small>Elixir process</small></div><b>&#8594;</b>
+						<div class="component port">Port<br /><small>BEAM object</small></div><b>&#8594;</b>
+						<div class="component native">executable<br /><small>OS process</small></div>
+					</div>
+					<p class="fragment callout">Open is not application-ready.</p>
+					<aside class="notes">
+						<p><strong>09:00-09:55</strong></p>
+						<ul>
+							<li>Distinguish the owner process, Port object, and OS executable.</li>
+							<li>The supervisor manages the owner; the owner opens the Port.</li>
+							<li>Reveal the callout: the owner waits for an application-level startup hello; an open Port only proves the channel exists.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S13A -->
+				<section id="s13a" data-cue="S13A">
+					<h2>When C crashes</h2>
+					<div class="owner-death-sequence with-supervisor crash-sequence">
+						<div class="sequence-domains"><span>BEAM OS process</span><span>Native OS process</span></div>
+						<div class="sequence-actors">
+							<div class="component supervisor-actor">Supervisor</div>
+							<div class="component owner-actor">Owner<span class="death-mark" aria-hidden="true">&#10005;</span></div>
+							<div class="component port port-actor">Port<span class="death-mark" aria-hidden="true">&#10005;</span></div>
+							<div class="component native worker-actor"><span class="original-worker">C worker (pid 42)</span><span class="replacement-worker">C worker (pid 43)</span><span class="death-mark" aria-hidden="true">&#10005;</span></div>
+						</div>
+						<div class="sequence-events">
+							<div class="sequence-event fragment native-crashed" data-fragment-index="0"><span class="sequence-message at-worker danger-text">&#10005; Native crash</span><span class="sequence-detail">The worker dies; the BEAM stays alive</span></div>
+							<div class="sequence-event fragment failure-reported" data-fragment-index="1"><span class="sequence-message transfer reverse port-to-owner"><span class="transfer-label">exit status</span></span><span class="sequence-detail">Owner reports failure, then stops; Port closes</span></div>
+							<div class="sequence-event fragment worker-replaced" data-fragment-index="2"><span class="sequence-message transfer supervisor-to-owner"><span class="transfer-label">restart owner</span></span><span class="sequence-detail">New owner opens a new Port and C worker</span></div>
+							<div class="sequence-event fragment" data-fragment-index="3"><span class="sequence-message transfer owner-to-native"><span class="transfer-label">fresh checksum request</span></span><span class="sequence-message transfer reverse owner-to-native"><span class="transfer-label">successful result</span></span></div>
+						</div>
+					</div>
+					<p class="caption">The failed request is reported, not replayed.</p>
+					<aside class="notes">
+						<p><strong>09:55-10:10</strong></p>
+						<ul>
+							<li>Start with the Supervisor, owner, Port, and native worker alive.</li>
+							<li>Next: C segfaults; the BEAM process survives.</li>
+							<li>Next: the owner receives the exit status, fails the pending caller, then stops. The Port closes.</li>
+							<li>Next: the surviving Supervisor restarts the owner, which opens a new Port and native worker. OS PIDs 42 and 43 are illustrative, not recorded output.</li>
+							<li>Next: a fresh checksum succeeds. This is not a retry of the failed request.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S13B / D1 -->
+				<section id="s13b" data-cue="S13B">
+					<h2>Crash C; keep the BEAM</h2>
+					<video class="demo-video" data-autoplay muted playsinline controls preload="metadata">
+						<source src="media/D1-port-crash.mp4" type="video/mp4" />
+					</video>
+					<aside class="notes">
+						<p><strong>10:10-10:25</strong></p>
+						<ul>
+							<li>Play D1 and let its final frame hold while narrating the sequence.</li>
+							<li>Point out the old PID, native exit 139, new PID, and successful request.</li>
+							<li>Supervision replaces the owner and executable; the BEAM survives.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S13C / E04 -->
+				<section id="s13c" data-cue="S13C">
+					<h2>Handle the Port exit</h2>
+					<pre><code class="language-elixir" data-trim>def handle_info({port, {:exit_status, status}}, %{port: port} = state),
+  do: fail(state, {:native_exit, status})</code></pre>
+					<p class="caption">The failed operation is not replayed.</p>
+					<aside class="notes">
+						<p><strong>10:25-10:55</strong></p>
+						<ul>
+							<li>The owner traps exits, handles the Port's exit status, resolves pending work, then stops.</li>
+							<li>Exit status describes the executable; the Port exit signal describes the Port lifetime.</li>
+							<li>Report the failed operation. Do not silently replay it.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S14 -->
+				<section id="s14" data-cue="S14">
+					<h2>Now kill the other side</h2>
+					<div class="boundary-diagram orphan">
+						<div class="process beam faded"><span class="label">BEAM exits</span></div>
+						<div class="broken">&#10005;</div>
+						<div class="process native-process"><span class="label">native worker</span><strong>still running?</strong></div>
+					</div>
+					<p class="callout danger-text">That is an orphan process.</p>
+					<aside class="notes">
+						<p><strong>10:55-11:55</strong></p>
+						<ul>
+							<li>Reverse the failure: the owner or whole BEAM disappears.</li>
+							<li>Closed channels do not universally terminate an executable.</li>
+							<li>The native program must notice and enforce shutdown, or an orphan can remain.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S14B -->
+				<section id="s14b" data-cue="S14B">
+					<h2>Who is reading EOF?</h2>
+					<div class="owner-death-sequence no-reader-sequence">
+						<div class="sequence-domains"><span>BEAM OS process</span><span>Native OS process</span></div>
+						<div class="sequence-actors">
+							<div class="component owner-actor">Owner<span class="death-mark" aria-hidden="true">&#10005;</span></div>
+							<div class="component port port-actor">Port<span class="death-mark" aria-hidden="true">&#10005;</span></div>
+							<div class="component native worker-actor">C worker (single thread)</div>
+						</div>
+						<div class="sequence-events">
+							<div class="sequence-event"><span class="sequence-message across">checksum request <span aria-hidden="true">&#10230;</span></span><span class="sequence-detail">60-second native work begins</span></div>
+							<div class="sequence-event fragment owner-killed" data-fragment-index="0"><span class="sequence-message at-owner danger-text">&#10005; Kill owner</span><span class="sequence-detail">C keeps computing</span></div>
+							<div class="sequence-event fragment port-closed" data-fragment-index="1"><span class="sequence-message to-worker">Port closes <span aria-hidden="true">&#10230;</span> stdin EOF</span><span class="sequence-detail">EOF is available, but C is not reading</span></div>
+							<div class="sequence-event fragment worker-busy" data-fragment-index="2"><span class="sequence-message at-worker danger-text">Still computing</span><span class="sequence-detail">The old worker remains alive until it notices the closed channel</span></div>
+						</div>
+					</div>
+					<p class="caption">EOF only helps when someone reads it.</p>
+					<aside class="notes">
+						<ul>
+							<li>Counterexample: a single-threaded worker reads a request, then blocks in slow native work.</li>
+							<li>Next: kill the owner, just as in the upcoming demo.</li>
+							<li>Next: the Port closes and stdin reaches EOF, but EOF does not interrupt computation.</li>
+							<li>Next: the old C worker is still alive. It may notice the closed channel on a later read or write; prompt shutdown is not guaranteed.</li>
+							<li>This is a conceptual failure case, not the implementation in the recording. Ask who can keep listening while computation runs, then advance to the reader-thread solution.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S15 / E05 -->
+				<section id="s15" data-cue="S15">
+					<h2>Keep someone listening</h2>
+					<div class="thread-layout">
+						<div class="process native-process">
+							<span class="label">native OS process</span>
+							<div class="component">reader thread<br /><small>stdin / EOF</small></div>
+							<div class="component native">compute thread<br /><small>native work</small></div>
+						</div>
+						<pre><code class="language-c" data-line-numbers="1-2|4-6" data-trim>pthread_t thread;
+pthread_create(&thread, NULL, compute, NULL);
+
+int result = read_request(&next);
+if (result == 0) _Exit(0);
+if (result &lt; 0) fatal("invalid input");</code></pre>
+					</div>
+					<p class="caption">Responsive communication, not isolation between threads.</p>
+					<aside class="notes">
+						<p><strong>11:55-13:00</strong></p>
+						<ul>
+							<li>Show the two-thread diagram, then the EOF code.</li>
+							<li>The reader stays on stdin while the compute thread works.</li>
+							<li>EOF calls <code>_Exit</code>, ending the whole executable promptly.</li>
+							<li>Threads improve responsiveness, not crash isolation. Child processes need broader policy.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S16A -->
+				<section id="s16a" data-cue="S16A">
+					<h2>When the owner dies</h2>
+					<div class="owner-death-sequence with-supervisor lifecycle-sequence">
+						<div class="sequence-domains"><span>BEAM OS process</span><span>Native OS process</span></div>
+						<div class="sequence-actors">
+							<div class="component supervisor-actor">Supervisor</div>
+							<div class="component owner-actor">Owner<span class="death-mark" aria-hidden="true">&#10005;</span></div>
+							<div class="component port port-actor">Port<span class="death-mark" aria-hidden="true">&#10005;</span></div>
+							<div class="component native worker-actor"><span class="original-worker">C worker (pid 42)</span><span class="replacement-worker">C worker (pid 43)</span></div>
+						</div>
+						<div class="sequence-events">
+							<div class="sequence-event"><span class="sequence-message transfer owner-to-native"><span class="transfer-label">slow checksum request</span></span></div>
+							<div class="sequence-event fragment owner-killed" data-fragment-index="0"><span class="sequence-message at-owner danger-text">&#10005; Kill owner</span><span class="sequence-detail">Pending caller gets <code>:unavailable</code></span></div>
+							<div class="sequence-event fragment port-closed" data-fragment-index="1"><span class="sequence-message transfer to-worker"><span class="transfer-label">Port closes; stdin EOF</span></span><span class="sequence-detail">C reader notices, even while compute is busy</span></div>
+							<div class="sequence-event fragment worker-exited" data-fragment-index="2"><span class="sequence-message at-worker danger-text"><code>_Exit(0)</code> &#10005;</span><span class="sequence-detail">Whole native process exits; no 60-second wait</span></div>
+							<div class="sequence-event fragment worker-replaced" data-fragment-index="3"><span class="sequence-message transfer supervisor-to-owner"><span class="transfer-label">restart owner</span></span><span class="sequence-detail">New owner opens a new Port and C worker</span></div>
+						</div>
+					</div>
+					<p class="caption">Restart and old-worker cleanup can overlap.</p>
+					<aside class="notes">
+						<p><strong>13:00-13:10</strong></p>
+						<ul>
+							<li>Start with the checksum request: C is busy for 60 seconds. OS PIDs 42 and 43 are illustrative.</li>
+							<li>Next: kill the owner. The pending caller receives <code>:unavailable</code>.</li>
+							<li>Next: the Port closes; C's reader sees EOF independently of the compute thread.</li>
+							<li>Next: <code>_Exit(0)</code> ends the whole old worker promptly.</li>
+							<li>Next: show supervision replacing the owner, which opens a new Port and worker. This recovery path can run concurrently with old-worker cleanup; the presentation order is not a guaranteed runtime ordering.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S16B / D2A -->
+				<section id="s16b" data-cue="S16B">
+					<h2>Owner dies; worker follows</h2>
+					<video class="demo-video" data-autoplay muted playsinline controls preload="metadata">
+						<source src="media/D2A-owner-death.mp4" type="video/mp4" />
+					</video>
+					<aside class="notes">
+						<p><strong>13:10-13:16</strong></p>
+						<ul>
+							<li>Play D2A: kill the owner during 60-second native work.</li>
+							<li>Point out the old worker exiting and the replacement PID.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S16C / D2B -->
+				<section id="s16c" data-cue="S16C">
+					<h2>BEAM dies; worker follows</h2>
+					<video class="demo-video" data-autoplay muted playsinline controls preload="metadata">
+						<source src="media/D2B-beam-death.mp4" type="video/mp4" />
+					</video>
+					<aside class="notes">
+						<p><strong>13:16-13:50</strong></p>
+						<ul>
+							<li>Play D2B: kill the disposable BEAM during the same slow work.</li>
+							<li>The native PID disappears promptly; cleanup does not wait 60 seconds.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S16D -->
+				<section id="s16d" data-cue="S16D">
+					<h2>Cleanup without <code>terminate/2</code></h2>
+					<div class="choice-row cleanup-summary">
+						<div class="choice">
+							<h3>owner dies</h3>
+							<p>Port closes<br />stdin reaches EOF<br />worker exits</p>
+						</div>
+						<div class="choice">
+							<h3>BEAM dies</h3>
+							<p>pipes close<br />stdin reaches EOF<br />worker exits</p>
+						</div>
+					</div>
+					<p class="callout">Closed input is the shutdown signal.</p>
+					<aside class="notes">
+						<p><strong>13:50-14:00</strong></p>
+						<ul>
+							<li>Cleanup depends on EOF, not <code>terminate/2</code>.</li>
+							<li><code>_Exit</code> skips graceful native cleanup; intentional for this stateless worker.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S17 -->
+				<section id="s17" data-cue="S17">
+					<h2>Where does the waiting happen?</h2>
+					<div class="queue-flow">
+						<span>producers</span><b>&#8594;</b><span class="queue">owner mailbox<br />&#9633;&#9633;&#9633;&#9633;&#9633;&#9633;</span><b>&#8594;</b><span class="queue">Port + pipes<br />&#9633;&#9633;&#9633;</span><b>&#8594;</b><span class="queue">C queue<br />&#9633;&#9633;</span>
+					</div>
+					<p class="callout danger-text">Moving a queue does not bound it.</p>
+					<aside class="notes">
+						<p><strong>14:00-14:45</strong></p>
+						<ul>
+							<li>Work can wait in the mailbox, Port buffers, pipes, or C.</li>
+							<li>Moving a queue does not bound it.</li>
+							<li>Choose admission capacity and rejection behavior explicitly.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S18 / E06 -->
+				<section id="s18" data-cue="S18">
+					<h2>Transport pressure</h2>
+					<pre><code class="language-elixir" data-line-numbers="1|2|4-5" data-trim>if Port.command(state.port, packet, [:nosuspend]) do
+  # Track the request; wait for the reply
+else
+  {:reply, {:error, :busy}, state}
+end</code></pre>
+					<p class="caption"><code>true</code> means accepted by the transport, not completed by C.</p>
+					<aside class="notes">
+						<p><strong>14:45-15:35</strong></p>
+						<ul>
+							<li>Highlight <code>:nosuspend</code>, then the <code>false</code> path.</li>
+							<li>Port backpressure can suspend the sender and prevent owner callbacks.</li>
+							<li><code>true</code> means accepted by the Port, not started or completed by C.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S19 / E07 -->
+				<section id="s19" data-cue="S19">
+					<h2>A GenServer is not a bounded queue</h2>
+					<div class="code-pair">
+						<pre><code class="language-elixir" data-trim>when pending != nil,
+  do: {:reply, {:error, :busy}, state}</code></pre>
+						<pre class="fragment"><code class="language-elixir" data-trim>inputs
+|> Task.async_stream(
+  &amp;checksum/1,
+  max_concurrency: 1
+)</code></pre>
+					</div>
+					<div class="labels"><span>one work slot</span><span class="fragment">bounded producer</span></div>
+					<p class="danger-text fragment">The mailbox is still unbounded.</p>
+					<aside class="notes">
+						<p><strong>15:35-16:30</strong></p>
+						<ul>
+							<li>Show the busy clause, then the bounded producer.</li>
+							<li>The owner rejects work only when it processes the call; its mailbox remains unbounded.</li>
+							<li><code>Task.async_stream</code> bounds one producer, not the application.</li>
+							<li>Transport pressure and admission control are separate.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S20 / E08 -->
+				<section id="s20" data-cue="S20">
+					<h2>Timeout is not cancel</h2>
+					<pre><code class="language-elixir" data-line-numbers="1|2|3" data-trim>def handle_info({:deadline, id}, %{pending: %{id: id}} = state) do
+  reply(state.pending, {:error, :timeout})
+  {:noreply, %{state | pending: %{state.pending | from: nil}}}
+end</code></pre>
+					<div class="equation"><span>caller stopped waiting</span><b>&ne;</b><span>C stopped working</span></div>
+					<aside class="notes">
+						<p><strong>16:30-17:15</strong></p>
+						<ul>
+							<li>A timeout stops waiting; it does not stop C.</li>
+							<li>Reply to the caller, but retain the pending request ID without a caller.</li>
+							<li>Reject new work until the late reply drains or the worker fails.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S21A -->
+				<section id="s21a" data-cue="S21A">
+					<h2>What the timeout demo runs</h2>
+					<pre><code class="language-elixir" data-line-numbers="1-2|3-4|5-6" data-trim>{:error, :timeout} =
+  Worker.checksum("slow", delay: 800, timeout: 100)
+{:error, :busy} = Worker.checksum("next")
+await(fn -&gt; Worker.status().pending == nil end)
+{:ok, _} = Worker.checksum("next")</code></pre>
+					<p class="caption">Abbreviated Mix-task orchestration.</p>
+					<aside class="notes">
+						<p><strong>17:15-17:35</strong></p>
+						<ul>
+							<li>This is the relevant orchestration inside <code>mix interop.demo timeout</code>.</li>
+							<li>The first call times out, the second sees the occupied slot, and <code>await/1</code> drains the late reply before the third call.</li>
+					</ul>
+					</aside>
+				</section>
+
+				<!-- S21B / D3 -->
+				<section id="s21b" data-cue="S21B">
+					<h2>See the late reply</h2>
+					<video class="demo-video" data-autoplay muted playsinline controls preload="metadata">
+						<source src="media/D3-timeout-busy-success.mp4" type="video/mp4" />
+					</video>
+					<aside class="notes">
+						<p><strong>17:35-18:00</strong></p>
+						<ul>
+							<li>Play D3: 800 ms work with a 100 ms caller timeout.</li>
+							<li>Observe timeout, busy, late reply drained, then success.</li>
+							<li>If C never returns, replace the worker explicitly.</li>
+							<li>Transition: same native work, now switch integration models.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S22A -->
+				<section id="s22a" data-cue="S22A">
+					<h2>What is a C Node?</h2>
+					<div class="process native-process wide cnode-definition">
+						<span class="label">native OS process</span>
+						<div class="component native">ordinary C executable</div>
+						<div class="component"><code>ei</code> &middot; Erlang distribution</div>
+					</div>
+					<p class="callout">A distribution peer, not a BEAM runtime.</p>
+					<aside class="notes">
+						<p><strong>18:00-18:25</strong></p>
+						<ul>
+							<li>A C Node is an ordinary native executable that speaks Erlang distribution.</li>
+							<li>Once connected, <code>ei</code> provides node identity, the handshake, and message transport.</li>
+							<li>It can address Erlang processes and registered names as a distribution peer.</li>
+							<li>It does not contain the BEAM, schedulers, lightweight processes, or OTP.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S22B -->
+				<section id="s22b" data-cue="S22B">
+					<h2>Why a C Node?</h2>
+					<div class="boundary-diagram">
+						<div class="process beam"><span class="label">beam@localhost</span><div class="component">Elixir</div></div>
+						<div class="connection">distribution</div>
+						<div class="process native-process"><span class="label">native@localhost</span><div class="component native">C</div></div>
+					</div>
+					<p class="callout">A different integration model, not an upgrade from Ports.</p>
+					<aside class="notes">
+						<p><strong>18:25-18:45</strong></p>
+						<ul>
+							<li>Choose this model for an independently managed service that needs distribution.</li>
+							<li>The checksum stays the same; the transport changes.</li>
+							<li>Messages target a destination on another node.</li>
+							<li>This is a different model, not an upgraded Port.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S23 -->
+				<section id="s23" data-cue="S23">
+					<h2>Still a C program</h2>
+					<div class="responsibilities">
+						<div><h3><code>ei</code> supplies</h3><p>handshake<br />receive / send<br />ETF helpers</p></div>
+						<div><h3>we supply</h3><p>service behavior<br />work slots<br />failure policy</p></div>
+					</div>
+					<p class="danger-text fragment">No BEAM processes. No BEAM schedulers. No OTP supervision tree.</p>
+					<aside class="notes">
+						<p><strong>18:45-19:35</strong></p>
+						<ul>
+							<li><code>ei</code> supplies handshake, ETF helpers, receive, and send.</li>
+							<li>We supply service behavior, work slots, and failure policy.</li>
+							<li>This example has one peer, one slot, and registered name <code>worker</code>.</li>
+							<li>Speaking distribution does not put a BEAM or OTP runtime inside C.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S24 -->
+				<section id="s24" data-cue="S24">
+					<h2><code>epmd</code> is the directory</h2>
+					<div class="epmd-diagram">
+						<div class="peer">C Node</div>
+						<div class="directory fragment"><code>epmd</code><small>Where is beam@localhost?</small></div>
+						<div class="peer">BEAM node</div>
+					</div>
+					<div class="direct fragment">C Node &#10231; BEAM node</div>
+					<p class="caption fragment">Discovery through epmd. Messages travel directly.</p>
+					<aside class="notes">
+						<p><strong>19:35-20:20</strong></p>
+						<ul>
+							<li>First show the C Node asking <code>epmd</code>; then reveal the direct connection.</li>
+							<li><code>epmd</code> maps a node name to its distribution port.</li>
+							<li>The handshake and messages use the direct peer connection.</li>
+							<li>Directory, not message broker.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S25 -->
+				<section id="s25" data-cue="S25">
+					<h2>Where did my node go?</h2>
+					<pre><code class="language-elixir" data-line-numbers="1|2" data-trim>Node.list()         # []
+Node.list(:hidden) # [:native@localhost]</code></pre>
+					<p class="callout">Hidden is a topology property.</p>
+					<p class="danger-text fragment">It is not a security property.</p>
+					<aside class="notes">
+						<p><strong>20:20-21:00</strong></p>
+						<ul>
+							<li>An <code>ei</code> C Node appears as a hidden node.</li>
+							<li>Use <code>Node.list(:hidden)</code> or another connected-node listing.</li>
+							<li>Hidden connections do not join the visible transitive mesh.</li>
+							<li>Hidden is topology, not security.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S26 / E09 -->
+				<section id="s26" data-cue="S26">
+					<h2>Two terminals</h2>
+					<div class="terminal-pair">
+						<div><span>Elixir</span><pre><code class="language-shell" data-trim>BEAM_COOKIE=codebeam_demo \
+iex -S mix cnode.beam --ticktime 4</code></pre></div>
+						<div><span>C</span><pre><code class="language-shell" data-trim>BEAM_COOKIE=codebeam_demo \
+mix cnode.start --trace</code></pre></div>
+					</div>
+					<p class="caption">Elixir supervises its client. It does not start C.</p>
+					<aside class="notes">
+						<p><strong>21:00-21:50</strong></p>
+						<ul>
+							<li>Show one command in each terminal.</li>
+							<li>Both use the same demo cookie; names and listeners stay on IPv4 loopback.</li>
+							<li>The setup does not depend on conference Wi-Fi.</li>
+							<li>Elixir supervises its client, but it did not start C.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S27 / E10 -->
+				<section id="s27" data-cue="S27">
+					<h2>Initialize; connect</h2>
+					<pre><code class="language-c" data-line-numbers="1|2-5|7-8" data-trim>if (ei_init() &lt; 0) fatal("ei_init failed");
+ei_cnode node;
+if (ei_connect_xinit(&node, "localhost", name, fullname,
+                     &amp;loopback, cookie, creation()) &lt; 0)
+    fatal("cannot initialize node identity");
+
+int fd = ei_connect_tmo(&node, peer, IO_TIMEOUT_MS);
+if (fd &lt; 0) fatal("connect failed");</code></pre>
+					<p class="caption"><code>#include &lt;ei.h&gt;</code> &middot; link <code>-lei</code> from the active OTP install</p>
+					<aside class="notes">
+						<p><strong>21:50-22:40</strong></p>
+						<ul>
+							<li>Build through library init, node identity, then connect.</li>
+							<li>Call <code>ei_init</code> exactly once before any other <code>ei</code> call.</li>
+							<li>Outgoing mode supplies a non-zero creation for this incarnation.</li>
+							<li><code>_tmo</code> limits each socket operation, not the whole attempt. <code>ei</code> performs the handshake.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S28 / E11 -->
+				<section id="s28" data-cue="S28">
+					<h2>Receive a message, not a function call</h2>
+					<pre><code class="language-c" data-line-numbers="1-3|5-6|7-8" data-trim>erlang_msg message;
+int result = ei_xreceive_msg_tmo(fd, &amp;message, &amp;incoming,
+                                 IO_TIMEOUT_MS);
+
+if (message.msgtype != ERL_REG_SEND ||
+    strcmp(message.toname, "worker") != 0) continue;
+// Decode request; hand it to the compute thread
+caller = message.from;</code></pre>
+					<p class="caption">Registered send to <code>worker</code>; retain this sender PID.</p>
+					<aside class="notes">
+						<p><strong>22:40-23:25</strong></p>
+						<ul>
+							<li>Receive an encoded term plus distribution metadata.</li>
+							<li>Accept only <code>ERL_REG_SEND</code> addressed to <code>worker</code>.</li>
+							<li>Decode the same request shape as the Port example.</li>
+							<li>Retain <code>message.from</code>, the sending process PID, for the reply.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S29 / E12 -->
+				<section id="s29" data-cue="S29">
+					<h2>Reply to the caller</h2>
+					<div class="code-pair">
+						<pre><code class="language-c" data-trim>int result = ei_send_tmo(
+  fd, to, buf.buff, buf.index,
+  IO_TIMEOUT_MS
+);
+ei_x_free(&amp;buf);</code></pre>
+						<pre><code class="language-elixir" data-trim>send({:worker, target},
+  {:checksum, 42, 0,
+   "123456789"})
+
+{:cnode_reply, c_pid,
+ {:result, 42, 3421780262}}</code></pre>
+					</div>
+					<p class="caption">Distribution handles serialization and framing.</p>
+					<aside class="notes">
+						<p><strong>23:25-24:15</strong></p>
+						<ul>
+							<li>The compute thread produces the result; the communication thread sends it.</li>
+							<li>Distribution handles serialization and framing.</li>
+							<li>The reply carries the request ID and the C Node's Erlang PID, not its OS PID, to identify this incarnation.</li>
+							<li>Our application still defines correlation, busy behavior, and timeouts.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S30 -->
+				<section id="s30" data-cue="S30">
+					<h2>If you squint, a GenServer</h2>
+					<div class="flow simple"><span>request</span><b>&#8594;</b><span>work</span><b>&#8594;</b><span>reply</span></div>
+					<p class="big-question fragment">GenServer?</p>
+					<p class="danger-text fragment">A familiar protocol is not an OTP runtime.</p>
+					<aside class="notes">
+						<p><strong>24:15-25:10</strong></p>
+						<ul>
+							<li>Build request, work, reply; then ask "GenServer?"</li>
+							<li>A similar shape does not make <code>GenServer.call</code> compatible.</li>
+							<li>The Elixir GenServer is only a convenience client.</li>
+							<li>A distribution connection does not prove the application service is ready.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S31A / D4 -->
+				<section id="s31a" data-cue="S31A">
+					<h2>Keep servicing distribution</h2>
+					<video class="demo-video" data-autoplay muted playsinline controls preload="metadata">
+						<source src="media/D4-cnode-ticks.mp4" type="video/mp4" />
+					</video>
+					<aside class="notes">
+						<p><strong>25:10-26:00</strong></p>
+						<ul>
+							<li>Play D4: hidden-node visibility, checksum, then the complete slow request.</li>
+							<li>Point out the <code>TICK serviced</code> lines while native work is still running.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S31B / E13 -->
+				<section id="s31b" data-cue="S31B">
+					<h2>Keep servicing distribution</h2>
+					<div class="thread-layout compact">
+						<div class="component">communication thread<br /><small>receive &middot; ticks &middot; replies</small></div>
+						<div class="component native">compute thread<br /><small>slow work</small></div>
+						<pre><code class="language-c" data-trim>if (result == ERL_TICK) {
+    continue; // ei already replied
+}</code></pre>
+					</div>
+					<aside class="notes">
+						<p><strong>26:00-26:15</strong></p>
+						<ul>
+							<li>The configured net tick time is four seconds, yet the connection survives.</li>
+							<li>The communication thread keeps receiving; <code>ei</code> answers ticks automatically.</li>
+							<li>The compute thread never writes distribution directly.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S32 / E14 -->
+				<section id="s32" data-cue="S32">
+					<h2>Or let the BEAM connect to C</h2>
+					<pre><code class="language-c" data-line-numbers="1|2|3" data-trim>int listener = ei_xlisten(&amp;node, &amp;loopback, &amp;port, 4);
+int publication = ei_publish_tmo(&amp;node, port, IO_TIMEOUT_MS);
+fd = ei_accept_tmo(&amp;node, listener, &amp;connection, IO_TIMEOUT_MS);</code></pre>
+					<div class="flow labels"><span>listen</span><b>&#8594;</b><span>publish to epmd</span><b>&#8594;</b><span>accept peer</span></div>
+					<p class="caption">Keep the publication descriptor open.</p>
+					<aside class="notes">
+						<p><strong>26:15-27:00</strong></p>
+						<ul>
+							<li>Reveal listen, publish, then accept.</li>
+							<li>Reverse direction: the BEAM initiates with <code>Node.connect</code>.</li>
+							<li>Keep the publication descriptor open for the <code>epmd</code> registration.</li>
+							<li>Publication and message connection use separate descriptors; both paths share one service loop.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S33A / D5 -->
+				<section id="s33a" data-cue="S33A">
+					<h2>Who restarts C?</h2>
+					<video class="demo-video" data-autoplay muted playsinline controls preload="metadata">
+						<source src="media/D5-cnode-restart.mp4" type="video/mp4" />
+					</video>
+					<aside class="notes">
+						<p><strong>27:00-27:30</strong></p>
+						<ul>
+							<li>Play D5: crash, nodedown, disconnected, explicit restart, success.</li>
+							<li>The Elixir client survives and fails the pending caller.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S33B -->
+				<section id="s33b" data-cue="S33B">
+					<h2>Who restarts C?</h2>
+					<p class="callout">Supervising the client does not supervise an independently started executable.</p>
+					<p class="caption">Explicit restart is part of the lifecycle policy.</p>
+					<aside class="notes">
+						<p><strong>27:30-28:00</strong></p>
+						<ul>
+							<li>Nothing restarts independently launched C; the terminal command did.</li>
+							<li>Starting an external service is a separate lifecycle decision.</li>
+							<li>Exiting on socket failure is our policy, not an <code>ei</code> guarantee.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S34 / E15 -->
+				<section id="s34" data-cue="S34">
+					<h2>Disconnected is an observation</h2>
+					<div class="sequence">
+						<div>Elixir</div><div>C</div>
+						<p class="request">request &#8594;</p>
+						<p class="work">operation succeeds</p>
+						<p class="lost">&#8592; reply <strong>LOST</strong></p>
+						<p class="down">nodedown</p>
+					</div>
+					<p class="callout danger-text">Did it happen?</p>
+					<p class="caption fragment">Request IDs correlate. They do not deduplicate.</p>
+					<aside class="notes">
+						<p><strong>28:00-29:00</strong></p>
+						<ul>
+							<li>Nodedown proves connection loss, not remote process death.</li>
+							<li>The operation may have succeeded before its reply was lost.</li>
+							<li>Retrying side effects can execute them twice.</li>
+							<li>Pause on "Did it happen?" Then reveal: request IDs correlate; they do not deduplicate execution.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S35 -->
+				<section id="s35" data-cue="S35">
+					<h2>Outside the VM; inside the trust boundary</h2>
+					<div class="trust-boundary">
+						<span class="trust-label">cluster trust</span>
+						<div class="process beam"><span class="label">BEAM OS process</span><div class="component">Elixir</div></div>
+						<div class="connection">distribution</div>
+						<div class="process native-process"><span class="label">C OS process</span><div class="component native">C Node</div></div>
+					</div>
+					<p class="callout">Crash isolation and cluster trust are different questions.</p>
+					<aside class="notes">
+						<p><strong>29:00-30:00</strong></p>
+						<ul>
+							<li>C is outside BEAM memory but inside the distribution trust boundary.</li>
+							<li>Distribution exposes far more than the checksum protocol.</li>
+							<li>Hidden does not mean sandboxed or harmless.</li>
+							<li>Crash isolation and cluster trust are separate decisions.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S36 -->
+				<section id="s36" data-cue="S36">
+					<h2>A cookie is not TLS</h2>
+					<div class="security-row">
+						<div><strong>cookie</strong><span>shared credential</span></div>
+						<div><strong>plain TCP</strong><span>no encryption</span></div>
+						<div><strong>TLS</strong><span>custom socket work for <code>ei</code></span></div>
+					</div>
+					<p class="danger-text fragment">A cookie is not per-service authorization.</p>
+					<aside class="notes">
+						<p><strong>30:00-31:00</strong></p>
+						<ul>
+							<li>The cookie is a shared connection credential, not encryption or per-service authorization.</li>
+							<li>The demo uses plain TCP on loopback with an illustrative cookie.</li>
+							<li>Enabling distribution TLS on the BEAM does not secure a plain <code>ei</code> client.</li>
+							<li>C-side TLS requires an <code>ei</code> custom socket implementation.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S37 -->
+				<section id="s37" data-cue="S37">
+					<h2>What are we paying for?</h2>
+					<div class="latency-equation">latency = encode + transport + queueing + native work + reply</div>
+					<div class="cost-bar tiny-work"><span>boundary</span><span>work</span><span>boundary</span></div>
+					<div class="cost-bar large-work"><span>boundary</span><span>native work</span><span>boundary</span></div>
+					<p class="caption">Conceptual cost model, not measured data.</p>
+					<aside class="notes">
+						<p><strong>31:00-32:00</strong></p>
+						<ul>
+							<li>End-to-end latency includes encoding, transport, queueing, native work, and the reply path.</li>
+							<li>Tiny work magnifies IPC cost; substantial work can hide it.</li>
+							<li>This is a conceptual model, not a universal Port-versus-C-Node ranking.</li>
+							<li>Measure warm persistent workers end-to-end, including tail latency.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S38 -->
+				<section id="s38" data-cue="S38">
+					<h2>Three choices, three contracts</h2>
+					<table class="decision-matrix">
+						<thead><tr><th></th><th>NIF</th><th class="fragment" data-fragment-index="1">Port</th><th class="fragment" data-fragment-index="2">C Node</th></tr></thead>
+						<tbody>
+							<tr><th>address space</th><td>inside BEAM</td><td class="fragment" data-fragment-index="1">separate</td><td class="fragment" data-fragment-index="2">separate</td></tr>
+							<tr><th>interface</th><td>native call</td><td class="fragment" data-fragment-index="1">framed bytes</td><td class="fragment" data-fragment-index="2">distribution</td></tr>
+							<tr><th>native-side requirement</th><td>native library<br />NIF ABI</td><td class="fragment" data-fragment-index="1">any executable<br />that speaks bytes</td><td class="fragment" data-fragment-index="2">C program<br />using <code>ei</code></td></tr>
+							<tr><th>you own</th><td>safety<br />scheduling<br />lifetimes</td><td class="fragment" data-fragment-index="1">protocol<br />lifecycle<br />pressure</td><td class="fragment" data-fragment-index="2">service protocol<br />connections<br />cluster trust</td></tr>
+						</tbody>
+					</table>
+					<aside class="notes">
+						<p><strong>32:00-33:00</strong></p>
+						<ul>
+							<li>Build the matrix one column at a time: NIF, Port, C Node.</li>
+							<li>NIF: in-process call; own safety, scheduling, and lifetimes.</li>
+							<li>Port: separate process; own protocol, lifecycle, and pressure.</li>
+							<li>C Node: separate process plus discovery, connections, and cluster trust.</li>
+							<li>Other languages can implement distribution peers, but a C Node specifically uses C and <code>ei</code>.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S39 -->
+				<section id="s39" data-cue="S39">
+					<h2>Which one would I reach for?</h2>
+					<div class="scenarios">
+						<div class="fragment"><strong>Tiny, hot operation</strong><span>measure first</span><b>NIF</b></div>
+						<div class="fragment"><strong>Local native library</strong><span>small isolated worker</span><b>Port</b></div>
+						<div class="fragment"><strong>Distribution service</strong><span>independent lifecycle</span><b>C Node</b></div>
+					</div>
+					<p class="caption fragment">Pick the interface you need, not the most features.</p>
+					<aside class="notes">
+						<p><strong>33:00-34:15</strong></p>
+						<ul>
+							<li>Tiny hot operation: measure first, then consider a NIF.</li>
+							<li>Local isolated native library: start with a Port.</li>
+							<li>Independent service that needs distribution: consider a C Node.</li>
+							<li>Independent lifecycle alone does not require distribution. Pick the interface you need.</li>
+						</ul>
+					</aside>
+				</section>
+
+				<!-- S40 -->
+				<section id="s40" data-cue="S40">
+					<h2>Choose what "it" is</h2>
+					<div class="takeaways">
+						<p>A process boundary contains crashes,<br /><strong>not lifecycle problems.</strong></p>
+						<p>Message passing still needs<br /><strong>pressure and failure policies.</strong></p>
+						<p>Distribution creates<br /><strong>a cluster trust relationship.</strong></p>
+					</div>
+					<p class="closing">Let it crash. Just choose what "it" is.</p>
+					<aside class="notes">
+						<p><strong>34:15-35:00</strong></p>
+						<ul>
+							<li>A process boundary contains crashes, not lifecycle problems.</li>
+							<li>Message passing still needs pressure and failure policies.</li>
+							<li>Distribution creates cluster trust; C does not become the BEAM.</li>
+							<li>Close by 35:00 and hold this slide for Q&amp;A.</li>
+						</ul>
+					</aside>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="dist/plugin/notes.js"></script>
+		<script src="dist/plugin/highlight.js"></script>
+		<script>
+			Reveal.initialize({
+				width: 1120,
+				height: 630,
+				hash: true,
+				controls: false,
+				progress: true,
+				center: true,
+				slideNumber: "c/t",
+				transition: "none",
+				plugins: [RevealHighlight, RevealNotes],
+			});
+		</script>
+	</body>
+</html>
