@@ -165,6 +165,12 @@
 	color: var(--muted);
 }
 
+.reveal .previous-episode img {
+	display: block;
+	height: 470px;
+	margin: 0 auto;
+}
+
 .whoami-grid {
 	display: grid;
 	grid-template-columns: 0.9fr 1.5fr;
@@ -227,8 +233,7 @@
 .lifecycle,
 .queue-flow,
 .equation,
-.epmd-diagram,
-.security-row {
+.epmd-diagram {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -307,10 +312,15 @@
 	width: 38%;
 }
 
+.choice.native {
+	border-color: var(--native);
+}
+
 .choice h3,
 .choice p {
 	margin: 0.25em;
 }
+
 
 .worker-controls,
 .labels {
@@ -389,8 +399,12 @@
 	text-align: center;
 }
 
+.flow.simple b {
+	font-size: 2em;
+	line-height: 1;
+}
+
 .code-pair,
-.terminal-pair,
 .thread-layout,
 .responsibilities {
 	display: grid;
@@ -415,7 +429,6 @@
 
 .stdio div,
 .responsibilities > div,
-.security-row > div,
 .scenarios > div {
 	display: flex;
 	flex: 1;
@@ -438,18 +451,6 @@
 .thread-layout small,
 .demo-placeholder small {
 	color: var(--muted);
-}
-
-.reveal .demo-video {
-	display: block;
-	box-sizing: border-box;
-	width: 92%;
-	max-height: 410px;
-	margin: 0 auto;
-	border: 4px solid var(--line);
-	border-radius: 12px;
-	background: #000;
-	object-fit: contain;
 }
 
 .demo-placeholder {
@@ -528,16 +529,6 @@
 	margin: 1em auto;
 	text-align: center;
 	font-size: 1.15em;
-}
-
-.terminal-pair > div {
-	padding: 0.6em;
-	border: 4px solid var(--line);
-}
-
-.terminal-pair pre {
-	width: 100%;
-	font-size: 0.45em;
 }
 
 .thread-layout.compact {
@@ -624,9 +615,16 @@
 	border-color: var(--danger);
 }
 
-.with-supervisor .sequence-event {
+.with-supervisor .sequence-event,
+.caller-sequence .sequence-event,
+.tick-sequence .sequence-event {
 	padding-block: 0.1em;
 	row-gap: 0.1em;
+}
+
+/* A message relayed through the middle lifeline: both arrows on one row. */
+.sequence-event.relay .transfer {
+	grid-row: 1;
 }
 
 .owner-death-sequence:has(.worker-replaced.visible) .component {
@@ -694,6 +692,68 @@
 
 .with-supervisor .sequence-message.port-to-owner { grid-column: 2 / 4; }
 .with-supervisor .sequence-message.supervisor-to-owner { grid-column: 1 / 3; }
+.with-supervisor .sequence-message.at-beam { grid-column: 1 / 4; }
+
+.beam-death-sequence:has(.beam-killed.visible) .supervisor-actor,
+.beam-death-sequence:has(.beam-killed.visible) .owner-actor,
+.beam-death-sequence:has(.beam-killed.visible) .port-actor {
+	border-style: dashed;
+	border-color: var(--danger);
+}
+
+/* Caller, Elixir owner or client, then C. The Port only carries the bytes here. */
+.caller-sequence .sequence-events {
+	background-image: linear-gradient(var(--beam), var(--beam)),
+		linear-gradient(var(--beam), var(--beam)),
+		linear-gradient(var(--native), var(--native));
+}
+
+.sequence-message.caller-to-owner { grid-column: 1 / 3; }
+.sequence-message.caller-to-native { grid-column: 1 / 4; }
+.sequence-message.at-caller { grid-column: 1; }
+
+/* BEAM node, then the C Node's communication and compute threads. */
+.tick-sequence .sequence-domains {
+	grid-template-columns: 1fr 2fr;
+}
+
+.tick-sequence .sequence-events {
+	background-image: linear-gradient(var(--beam), var(--beam)),
+		linear-gradient(var(--native), var(--native)),
+		linear-gradient(var(--native), var(--native));
+}
+
+.sequence-message.beam-to-comm { grid-column: 1 / 3; }
+.sequence-message.comm-to-compute { grid-column: 2 / 4; }
+
+/* Supervisor, client, C Node, and whoever starts C from the other terminal. */
+.restart-sequence .sequence-domains {
+	grid-template-columns: 2fr 1fr 1fr;
+}
+
+.restart-sequence .sequence-domains span:nth-child(2) {
+	border-color: var(--native);
+}
+
+.restart-sequence .sequence-domains span:last-child {
+	border-color: var(--line);
+}
+
+.restart-sequence .sequence-events {
+	background-image: linear-gradient(var(--beam), var(--beam)),
+		linear-gradient(var(--beam), var(--beam)),
+		linear-gradient(var(--native), var(--native)),
+		linear-gradient(var(--line), var(--line));
+}
+
+.operator-actor,
+.owner-death-sequence:has(.worker-replaced.visible) .operator-actor {
+	border-color: var(--line);
+}
+
+.with-supervisor .sequence-message.client-to-cnode { grid-column: 2 / 4; }
+.with-supervisor .sequence-message.at-cnode { grid-column: 3; }
+.with-supervisor .sequence-message.operator-to-cnode { grid-column: 3 / 5; }
 
 .sequence-message.transfer {
 	position: relative;
@@ -704,13 +764,19 @@
 	background: transparent;
 }
 
-.sequence-message.transfer.owner-to-native {
+.sequence-message.transfer.owner-to-native,
+.sequence-message.transfer.caller-to-native {
 	margin-inline: calc((100% - 2em) / 6);
 }
 
 .sequence-message.transfer.port-to-owner,
 .sequence-message.transfer.to-worker,
-.sequence-message.transfer.supervisor-to-owner {
+.sequence-message.transfer.supervisor-to-owner,
+.sequence-message.transfer.caller-to-owner,
+.sequence-message.transfer.beam-to-comm,
+.sequence-message.transfer.comm-to-compute,
+.sequence-message.transfer.client-to-cnode,
+.sequence-message.transfer.operator-to-cnode {
 	margin-inline: calc((100% - 1em) / 4);
 }
 
@@ -726,7 +792,9 @@
 	border-left: 0.3em solid var(--ink);
 }
 
-.with-supervisor .sequence-message.transfer {
+.with-supervisor .sequence-message.transfer,
+.caller-sequence .sequence-message.transfer,
+.tick-sequence .sequence-message.transfer {
 	margin-bottom: 0.2em;
 }
 
@@ -737,9 +805,31 @@
 	border-right: 0.3em solid var(--ink);
 }
 
+/* A reply that never arrives: dashed, and it stops short of the receiver. */
+.sequence-message.transfer.lost {
+	margin-left: calc((100% - 1em) / 2);
+	border-bottom-style: dashed;
+	border-bottom-color: var(--danger);
+	color: var(--danger);
+}
+
+.sequence-message.transfer.lost::after {
+	content: "\2715";
+	left: -0.35em;
+	bottom: -0.6em;
+	width: auto;
+	height: auto;
+	border: 0;
+	line-height: 1;
+}
+
 .transfer-label {
 	padding-inline: 0.25em;
 	background: var(--paper);
+}
+
+.transfer-label code {
+	font-size: 0.85em;
 }
 
 .sequence-detail {
@@ -751,31 +841,6 @@
 	font-size: 0.78em;
 }
 
-.sequence {
-	position: relative;
-	display: grid;
-	width: 70%;
-	min-height: 300px;
-	grid-template-columns: 1fr 1fr;
-	margin-inline: auto;
-	border-left: 3px solid var(--beam);
-	border-right: 3px solid var(--native);
-	text-align: center;
-}
-
-.sequence p {
-	position: absolute;
-	left: 20%;
-	width: 60%;
-	margin: 0;
-	font-size: 0.7em;
-}
-
-.sequence .request { top: 25%; }
-.sequence .work { top: 45%; color: var(--native); }
-.sequence .lost { top: 65%; }
-.sequence .down { top: 85%; color: var(--danger); }
-
 .trust-boundary {
 	position: relative;
 	display: flex;
@@ -784,6 +849,11 @@
 	gap: 0.7em;
 	padding: 1.6em 0.8em 0.8em;
 	border: 6px dashed var(--port);
+	font-size: 0.8em;
+}
+
+.trust-boundary .process {
+	min-height: 0;
 }
 
 .trust-label {
@@ -792,18 +862,6 @@
 	left: 0.7em;
 	font-size: 0.65em;
 	color: var(--muted);
-}
-
-.security-row {
-	align-items: stretch;
-}
-
-.security-row strong {
-	font-size: 1.15em;
-}
-
-.security-row span {
-	font-size: 0.65em;
 }
 
 .latency-equation {
@@ -835,19 +893,50 @@
 .tiny-work { grid-template-columns: 5fr 1fr 5fr; }
 .large-work { grid-template-columns: 1fr 8fr 1fr; }
 
+/* The theme left-aligns table cells and drops the last row's border. */
 .decision-matrix {
+	width: 92%;
+	table-layout: fixed;
 	font-size: 0.58em;
+	line-height: 1.25;
 }
 
-.decision-matrix th,
-.decision-matrix td {
-	border: 1px solid var(--line);
+.reveal .decision-matrix th,
+.reveal .decision-matrix td {
+	padding: 0.45em 0.6em;
+	border-bottom: 2px solid var(--line);
 	text-align: center;
+	vertical-align: middle;
 }
 
-.decision-matrix tbody th {
+.reveal .decision-matrix thead th {
+	padding-top: 0.7em;
+	border-bottom: 3px solid var(--ink);
+	font-size: 1.2em;
+}
+
+/* Collapsed borders belong to the table, so they would show before a column's
+   build. A background bar fades in with its cell. */
+.reveal .decision-matrix thead .nif,
+.reveal .decision-matrix thead .port,
+.reveal .decision-matrix thead .cnode {
+	background: linear-gradient(var(--bar), var(--bar)) center top / calc(100% - 0.8em) 8px no-repeat;
+}
+
+.reveal .decision-matrix thead .nif { --bar: var(--beam); }
+.reveal .decision-matrix thead .port { --bar: var(--port); }
+.reveal .decision-matrix thead .cnode { --bar: var(--native); }
+
+.reveal .decision-matrix tbody th {
+	width: 24%;
 	text-align: right;
 	color: var(--muted);
+	font-weight: 600;
+}
+
+.reveal .decision-matrix tbody tr:last-child th,
+.reveal .decision-matrix tbody tr:last-child td {
+	border-bottom: 3px solid var(--ink);
 }
 
 .scenarios > div {
@@ -880,4 +969,17 @@
 	margin-top: 1.4em;
 	font-size: 1.15em;
 	text-align: center;
+}
+
+.thanks-grid {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 1.4em;
+}
+
+.reveal .thanks-grid img {
+	display: block;
+	width: 380px;
+	margin: 0;
 }
