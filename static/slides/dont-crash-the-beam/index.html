@@ -287,17 +287,23 @@ Port.command(port, packet)</code></pre>
 				<section id="s10" data-cue="S10">
 					<h2>Make it look like an Elixir call</h2>
 					<div class="code-pair">
-						<pre><code class="language-elixir" data-trim>timer = Process.send_after(
-  self(), {:deadline, id}, timeout
-)
+						<pre><code class="language-elixir" data-trim>def handle_call(request, from, state) do
+  # ...send the request to C...
+  timer = Process.send_after(
+    self(), {:deadline, id}, timeout
+  )
 
-{:noreply,
- %{state | pending: %{id: id,
-   from: from, timer: timer}}}</code></pre>
-						<pre class="fragment"><code class="language-elixir" data-trim>Process.cancel_timer(timer)
-GenServer.reply(from, result)
+  {:noreply,
+   %{state | pending: %{id: id,
+     from: from, timer: timer}}}
+end</code></pre>
+						<pre class="fragment"><code class="language-elixir" data-trim>def handle_info({port, {:data, data}}, state) do
+  # ...decode, match the pending ID...
+  Process.cancel_timer(timer)
+  GenServer.reply(from, result)
 
-%{state | pending: nil}</code></pre>
+  {:noreply, %{state | pending: nil}}
+end</code></pre>
 					</div>
 					<p class="caption">Keep the caller. Reply when the Port answers.</p>
 					<aside class="notes">
@@ -318,14 +324,14 @@ GenServer.reply(from, result)
 						<div><code>stdout</code><strong>protocol</strong></div>
 						<div><code>stderr</code><strong>diagnostics</strong></div>
 					</div>
-					<p class="caption">Do not merge them (no <code>:stderr_to_stdout</code>).</p>
+					<p class="caption">Do not merge them.</p>
 					<p class="caption fragment">Or free stdout: <code>:nouse_stdio</code> moves the protocol to fds 3 and 4.</p>
 					<aside class="notes">
 						<p><strong>08:15-09:00</strong></p>
 						<ul>
 							<li><code>stdout</code> belongs exclusively to the protocol.</li>
 							<li>A debug <code>printf</code> can corrupt packet framing.</li>
-							<li>Use <code>read</code>/<code>write</code>; send diagnostics to <code>stderr</code> and never merge it back. <code>:stderr_to_stdout</code> is the option that would merge them.</li>
+							<li>Use <code>read</code>/<code>write</code>; send diagnostics to <code>stderr</code> and never merge it back.</li>
 							<li>Build: <code>:nouse_stdio</code> moves the protocol to fds 3 and 4. Our worker uses stdio; with this option the C side would read fd 3 and write fd 4.</li>
 						</ul>
 					</aside>
@@ -605,18 +611,18 @@ end</code></pre>
 					<div class="code-pair">
 						<pre><code class="language-elixir" data-trim>when pending != nil,
   do: {:reply, {:error, :busy}, state}</code></pre>
-						<pre class="fragment"><code class="language-elixir" data-trim>inputs
+						<pre class="fragment" data-fragment-index="1"><code class="language-elixir" data-trim>inputs
 |> Task.async_stream(
   &amp;checksum/1,
   max_concurrency: 1
 )</code></pre>
 					</div>
-					<div class="labels"><span>one work slot</span><span class="fragment">bounded producer</span></div>
-					<p class="danger-text fragment">The mailbox is still unbounded.</p>
+					<div class="labels"><span>one work slot</span><span class="fragment" data-fragment-index="1">bounded producer</span></div>
+					<p class="danger-text fragment" data-fragment-index="0">The mailbox is still unbounded.</p>
 					<aside class="notes">
 						<p><strong>16:30-17:20</strong></p>
 						<ul>
-							<li>Show the busy clause, then the bounded producer.</li>
+							<li>Show the busy clause, then the unbounded-mailbox warning, then the bounded producer.</li>
 							<li>The owner rejects work only when it processes the call; its mailbox remains unbounded.</li>
 							<li><code>Task.async_stream</code> bounds one producer, not the application.</li>
 							<li>Transport pressure and admission control are separate.</li>

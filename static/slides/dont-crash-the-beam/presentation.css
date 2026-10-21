@@ -413,6 +413,10 @@
 	gap: 0.7em;
 }
 
+.code-pair {
+	align-items: start;
+}
+
 .code-pair pre,
 .thread-layout pre {
 	width: 100%;
@@ -535,7 +539,8 @@
 	grid-template-columns: 1fr 1fr 1.3fr;
 }
 
-.thread-layout .process > .component + .component {
+.thread-layout .process > .component + .component,
+.cnode-definition > .component + .component {
 	margin-top: 0.5em;
 }
 
